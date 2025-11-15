@@ -1,38 +1,253 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { Music, Video, Download, Trash2, Play, CheckCircle, XCircle, Loader } from 'lucide-react';
 
 const YouTubeDownloader = () => {
   const [url, setUrl] = useState('');
-  const [format, setFormat] = useState('mp4');
   const [loading, setLoading] = useState(false);
-  const [videoInfo, setVideoInfo] = useState(null);
   const [downloadStatus, setDownloadStatus] = useState(null);
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
   const [downloadHistory, setDownloadHistory] = useState([]);
-  const [activeTab, setActiveTab] = useState('download'); // 'download' or 'history'
+  const [activeTab, setActiveTab] = useState('download');
+  const [downloadMode, setDownloadMode] = useState(null);
+  const [currentDownload, setCurrentDownload] = useState(null);
+  const [historyFilter, setHistoryFilter] = useState('all');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
 
   const API_BASE = 'http://localhost:8000/api';
 
-  // Wrap fetchVideoInfo in useCallback to prevent unnecessary recreations
-  const fetchVideoInfo = useCallback(async () => {
-    if (!url) return;
-    
-    try {
-      setError('');
-      const response = await fetch(`${API_BASE}/video-info/?url=${encodeURIComponent(url)}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setVideoInfo(data);
-      } else {
-        setError(data.error || 'Failed to fetch video info');
-        setVideoInfo(null);
-      }
-    } catch (err) {
-      setError('Failed to connect to server');
-      setVideoInfo(null);
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Filter history based on selected filter
+  const filteredHistory = downloadHistory.filter(item => {
+    if (historyFilter === 'all') return true;
+    if (historyFilter === 'music') return item.format === 'mp3';
+    if (historyFilter === 'videos') return item.format === 'mp4';
+    return true;
+  });
+
+  const styles = {
+    container: {
+      minHeight: '100vh',
+      background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
+      padding: isMobile ? '0.5rem' : '1rem'
+    },
+    wrapper: {
+      maxWidth: '1200px',
+      margin: '0 auto'
+    },
+    header: {
+      textAlign: 'center',
+      marginBottom: isMobile ? '1rem' : '2rem'
+    },
+    title: {
+      fontSize: isMobile ? '1.5rem' : '2.25rem',
+      fontWeight: 'bold',
+      color: '#1f2937',
+      marginBottom: '0.5rem'
+    },
+    subtitle: {
+      color: '#6b7280',
+      fontSize: isMobile ? '0.875rem' : '1rem'
+    },
+    tabContainer: {
+      display: 'flex',
+      gap: isMobile ? '0.5rem' : '1rem',
+      marginBottom: '1.5rem'
+    },
+    tabButton: {
+      flex: 1,
+      padding: isMobile ? '0.5rem' : '0.75rem',
+      borderRadius: '0.5rem',
+      fontWeight: '600',
+      transition: 'all 0.3s ease',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: isMobile ? '0.875rem' : '1rem'
+    },
+    tabButtonActive: {
+      background: 'linear-gradient(135deg, #7c3aed 0%, #2563eb 100%)',
+      color: 'white',
+      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)'
+    },
+    tabButtonInactive: {
+      backgroundColor: 'white',
+      color: '#374151'
+    },
+    errorAlert: {
+      backgroundColor: '#fef2f2',
+      border: '1px solid #fecaca',
+      color: '#991b1b',
+      padding: '0.75rem 1rem',
+      borderRadius: '0.5rem',
+      marginBottom: '1rem',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+      fontSize: isMobile ? '0.875rem' : '1rem'
+    },
+    card: {
+      backgroundColor: 'white',
+      borderRadius: '1rem',
+      boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1)',
+      padding: isMobile ? '1rem' : '1.5rem'
+    },
+    centerContent: {
+      textAlign: 'center',
+      padding: isMobile ? '1rem 0' : '2rem 0'
+    },
+    modeSelection: {
+      display: 'flex',
+      flexDirection: isMobile ? 'column' : 'row',
+      gap: '1.5rem',
+      justifyContent: 'center',
+      marginTop: '1.5rem',
+      alignItems: isMobile ? 'stretch' : 'center'
+    },
+    modeButton: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '1rem',
+      padding: isMobile ? '1.5rem' : '2rem',
+      color: 'white',
+      borderRadius: '1rem',
+      cursor: 'pointer',
+      transition: 'all 0.3s ease',
+      width: isMobile ? '100%' : '12rem',
+      border: 'none'
+    },
+    modeIndicator: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: '1.5rem',
+      padding: isMobile ? '0.75rem' : '1rem',
+      background: 'linear-gradient(135deg, #0ecd74ff 0%, #e9d5ff 100%)',
+      borderRadius: '0.5rem',
+      flexDirection: isMobile ? 'column' : 'row',
+      gap: isMobile ? '0.75rem' : '0'
+    },
+    input: {
+      flex: 1,
+      padding: isMobile ? '0.75rem' : '0.75rem 1rem',
+      border: '1px solid #d1d5db',
+      borderRadius: '0.5rem',
+      outline: 'none',
+      fontSize: isMobile ? '0.875rem' : '1rem',
+      width: '100%',
+      boxSizing: 'border-box'
+    },
+    button: {
+      padding: isMobile ? '0.625rem 1rem' : '0.75rem 1.5rem',
+      borderRadius: '0.5rem',
+      border: 'none',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+      fontWeight: '500',
+      fontSize: isMobile ? '0.875rem' : '1rem'
+    },
+    buttonPrimary: {
+      backgroundColor: '#2563eb',
+      color: 'white'
+    },
+    buttonDisabled: {
+      backgroundColor: '#9ca3af',
+      cursor: 'not-allowed'
+    },
+    downloadButton: {
+      width: '100%',
+      padding: isMobile ? '0.875rem' : '1rem',
+      borderRadius: '0.5rem',
+      fontWeight: 'bold',
+      fontSize: isMobile ? '1rem' : '1.125rem',
+      border: 'none',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '0.5rem',
+      transition: 'all 0.3s ease'
+    },
+    progressContainer: {
+      marginTop: '1.5rem',
+      padding: isMobile ? '0.75rem' : '1rem',
+      backgroundColor: '#f9fafb',
+      borderRadius: '0.5rem'
+    },
+    progressBar: {
+      width: '100%',
+      height: isMobile ? '1.75rem' : '2rem',
+      backgroundColor: '#e5e7eb',
+      borderRadius: '9999px',
+      overflow: 'hidden',
+      position: 'relative'
+    },
+    progressFill: {
+      height: '100%',
+      transition: 'all 0.3s ease',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      color: 'white',
+      fontSize: isMobile ? '0.75rem' : '0.875rem',
+      fontWeight: 'bold'
+    },
+    historyItem: {
+      display: 'flex',
+      gap: isMobile ? '0.75rem' : '1rem',
+      padding: isMobile ? '0.75rem' : '1rem',
+      backgroundColor: '#f9fafb',
+      borderRadius: '0.5rem',
+      marginBottom: '1rem',
+      transition: 'all 0.3s ease',
+      flexDirection: isMobile ? 'column' : 'row'
+    },
+    historyThumbnail: {
+      width: isMobile ? '100%' : '10rem',
+      height: isMobile ? 'auto' : '7rem',
+      borderRadius: '0.5rem',
+      objectFit: 'cover'
+    },
+    videoThumbnail: {
+      width: isMobile ? '100%' : '8rem',
+      height: isMobile ? 'auto' : '5rem',
+      borderRadius: '0.25rem',
+      objectFit: 'cover'
+    },
+    actionButtons: {
+      display: 'flex',
+      gap: '0.5rem',
+      marginTop: '0.75rem',
+      flexWrap: 'wrap'
+    },
+    footer: {
+      textAlign: 'center',
+      marginTop: '2rem',
+      fontSize: isMobile ? '0.75rem' : '0.875rem',
+      color: '#6b7280'
+    },
+    lineClamp1: {
+      display: '-webkit-box',
+      WebkitLineClamp: 1,
+      WebkitBoxOrient: 'vertical',
+      overflow: 'hidden'
+    },
+    lineClamp2: {
+      display: '-webkit-box',
+      WebkitLineClamp: 2,
+      WebkitBoxOrient: 'vertical',
+      overflow: 'hidden'
     }
-  }, [url, API_BASE]);
+  };
 
   const fetchDownloadHistory = useCallback(async () => {
     try {
@@ -44,17 +259,7 @@ const YouTubeDownloader = () => {
     } catch (err) {
       console.error('Failed to fetch download history', err);
     }
-  }, [API_BASE]);
-
-  useEffect(() => {
-    const delayDebounceFn = setTimeout(() => {
-      if (url.includes('youtube.com') || url.includes('youtu.be')) {
-        fetchVideoInfo();
-      }
-    }, 1000);
-
-    return () => clearTimeout(delayDebounceFn);
-  }, [url, fetchVideoInfo]);
+  }, []);
 
   useEffect(() => {
     if (activeTab === 'history') {
@@ -68,10 +273,21 @@ const YouTubeDownloader = () => {
       return;
     }
 
+    if (!downloadMode) {
+      setError('Please select download type (Music or Videos) first');
+      return;
+    }
+
+    const formatType = downloadMode === 'music' ? 'mp3' : 'mp4';
+
     setLoading(true);
     setError('');
     setDownloadStatus('starting');
     setProgress(0);
+    setCurrentDownload({
+      title: 'Downloading...',
+      thumbnail: ''
+    });
 
     try {
       const response = await fetch(`${API_BASE}/download/`, {
@@ -79,33 +295,38 @@ const YouTubeDownloader = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ url, format }),
+        body: JSON.stringify({ 
+          url: url, 
+          format: formatType 
+        }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
         setDownloadStatus('processing');
-        // Start continuous polling for progress
         pollDownloadStatus(data.request_id);
       } else {
         setError(data.error || 'Failed to start download');
         setLoading(false);
+        setDownloadStatus(null);
       }
     } catch (err) {
       setError('Failed to connect to server');
       setLoading(false);
+      setDownloadStatus(null);
     }
   };
 
   const pollDownloadStatus = async (id) => {
     let pollCount = 0;
-    const maxPolls = 300; // Maximum 15 minutes (300 * 3 seconds)
+    const maxPolls = 200;
     
     const poll = async () => {
       if (pollCount >= maxPolls) {
         setError('Download timeout. Please try again.');
         setLoading(false);
+        setDownloadStatus(null);
         return;
       }
 
@@ -113,35 +334,44 @@ const YouTubeDownloader = () => {
         const response = await fetch(`${API_BASE}/status/${id}/`);
         const data = await response.json();
 
-        console.log('Progress update:', data.progress);
-
-        // Update progress regardless of status
         if (data.progress !== undefined) {
           setProgress(Math.round(data.progress));
+        }
+
+        if (data.video_title && currentDownload) {
+          setCurrentDownload(prev => ({
+            ...prev,
+            title: data.video_title
+          }));
         }
 
         if (data.status === 'completed') {
           setDownloadStatus('completed');
           setProgress(100);
-          setLoading(false);
-          // Refresh download history
-          fetchDownloadHistory();
-          // Switch to history tab
-          setActiveTab('history');
+          setTimeout(() => {
+            setLoading(false);
+            fetchDownloadHistory();
+            setActiveTab('history');
+            setDownloadMode(null);
+            setUrl('');
+            setDownloadStatus(null);
+            setCurrentDownload(null);
+            setProgress(0);
+          }, 1500);
         } else if (data.status === 'failed') {
           setDownloadStatus('failed');
-          setError('Download failed. Please try again.');
+          setError(data.error || 'Download failed. Please try again.');
           setLoading(false);
           setProgress(0);
         } else {
-          // Still processing, continue polling every 3 seconds
           pollCount++;
-          setTimeout(poll, 3000);
+          setTimeout(poll, 1000);
         }
       } catch (err) {
         console.error('Polling error:', err);
         setError('Failed to check download status');
         setLoading(false);
+        setDownloadStatus(null);
       }
     };
 
@@ -149,14 +379,13 @@ const YouTubeDownloader = () => {
   };
 
   const deleteDownload = async (downloadId, fileName) => {
-    if (window.confirm(`Are you sure you want to delete "${fileName}"?`)) {
+    if (window.confirm(`Delete "${fileName}"?`)) {
       try {
         const response = await fetch(`${API_BASE}/downloads/delete/${downloadId}/`, {
           method: 'DELETE',
         });
 
         if (response.ok) {
-          // Remove from local state
           setDownloadHistory(downloadHistory.filter(item => item.id !== downloadId));
         } else {
           const data = await response.json();
@@ -183,394 +412,390 @@ const YouTubeDownloader = () => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const formatDate = (dateString) => {
-    return new Date(dateString).toLocaleString();
-  };
-
-  // Progress bar component
-  const ProgressBar = ({ progress, status }) => {
-    return (
-      <div style={{
-        width: '100%',
-        backgroundColor: '#e0e0e0',
-        borderRadius: '10px',
-        overflow: 'hidden',
-        margin: '10px 0',
-        height: '20px',
-        position: 'relative'
-      }}>
-        <div
-          style={{
-            width: `${progress}%`,
-            backgroundColor: 
-              status === 'completed' ? '#4CAF50' :
-              status === 'failed' ? '#f44336' :
-              '#2196F3',
-            height: '100%',
-            borderRadius: '10px',
-            transition: 'width 0.5s ease-in-out',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            fontSize: '12px',
-            fontWeight: 'bold'
-          }}
-        >
-          {progress}%
-        </div>
-      </div>
-    );
-  };
-
-  const DownloadItem = ({ download }) => {
-    const isVideo = download.format === 'mp4';
-    const isAudio = download.format === 'mp3';
-
-    return (
-      <div style={{
-        border: '1px solid #ddd',
-        borderRadius: '8px',
-        padding: '15px',
-        marginBottom: '15px',
-        backgroundColor: 'white'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '15px' }}>
-          {download.thumbnail && (
-            <img 
-              src={download.thumbnail} 
-              alt="Thumbnail"
-              style={{
-                width: '120px',
-                height: '90px',
-                borderRadius: '5px',
-                objectFit: 'cover'
-              }}
-            />
-          )}
-          <div style={{ flex: 1 }}>
-            <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>
-              {download.title}
-            </h4>
-            <div style={{ fontSize: '14px', color: '#666', marginBottom: '10px' }}>
-              <div>Format: {download.format.toUpperCase()}</div>
-              <div>Size: {formatFileSize(download.file_size)}</div>
-              {download.duration > 0 && <div>Duration: {formatDuration(download.duration)}</div>}
-              <div>Downloaded: {formatDate(download.created_at)}</div>
-            </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-              {isVideo && (
-                <button
-                  onClick={() => window.open(`${API_BASE}/play-file/?path=${encodeURIComponent(download.file_path)}`, '_blank')}
-                  style={{
-                    padding: '8px 15px',
-                    backgroundColor: '#2196F3',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px',
-                    cursor: 'pointer',
-                    fontSize: '14px'
-                  }}
-                >
-                  ▶ Play
-                </button>
-              )}
-              {isAudio && (
-                <button
-                  onClick={() => {
-                    const audio = new Audio(`${API_BASE}/play-file/?path=${encodeURIComponent(download.file_path)}`);
-                    audio.play();
-                  }}
-                  style={{
-                    padding: '8px 15px',
-                    backgroundColor: '#2196F3',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '5px',
-                    cursor: 'pointer',
-                    fontSize: '14px'
-                  }}
-                >
-                  🔈 Play
-                </button>
-              )}
-              <button
-                onClick={() => window.open(`${API_BASE}/download-file/?path=${encodeURIComponent(download.file_path)}`, '_blank')}
-                style={{
-                  padding: '8px 15px',
-                  backgroundColor: '#4CAF50',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                ⬇ Download
-              </button>
-              <button
-                onClick={() => deleteDownload(download.id, download.file_name)}
-                style={{
-                  padding: '8px 15px',
-                  backgroundColor: '#f44336',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '5px',
-                  cursor: 'pointer',
-                  fontSize: '14px'
-                }}
-              >
-                🗑 Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   return (
-    <div style={{ 
-      maxWidth: '800px', 
-      margin: '20px auto', 
-      padding: '20px',
-      fontFamily: 'Arial, sans-serif',
-      backgroundColor: '#f5f5f5',
-      borderRadius: '10px',
-      boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-    }}>
-      <h1 style={{ 
-        textAlign: 'center', 
-        color: '#333',
-        marginBottom: '30px'
-      }}>
-        YouTube Downloader
-      </h1>
+    <div style={styles.container}>
+      <div style={styles.wrapper}>
+        {/* Header */}
+        <div style={styles.header}>
+          <h1 style={styles.title}>YouTube Downloader</h1>
+          <p style={styles.subtitle}>Download your favorite music and videos</p>
+        </div>
 
-      {/* Tab Navigation */}
-      <div style={{ 
-        display: 'flex', 
-        marginBottom: '20px',
-        borderBottom: '2px solid #ddd'
-      }}>
-        <button
-          onClick={() => setActiveTab('download')}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: activeTab === 'download' ? '#ff4444' : 'transparent',
-            color: activeTab === 'download' ? 'white' : '#666',
-            border: 'none',
-            borderBottom: activeTab === 'download' ? '2px solid #ff4444' : 'none',
-            cursor: 'pointer',
-            fontSize: '16px',
-            fontWeight: 'bold'
-          }}
-        >
-          Download
-        </button>
-        <button
-          onClick={() => setActiveTab('history')}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: activeTab === 'history' ? '#2196F3' : 'transparent',
-            color: activeTab === 'history' ? 'white' : '#666',
-            border: 'none',
-            borderBottom: activeTab === 'history' ? '2px solid #2196F3' : 'none',
-            cursor: 'pointer',
-            fontSize: '16px',
-            fontWeight: 'bold'
-          }}
-        >
-          Download History ({downloadHistory.length})
-        </button>
-      </div>
+        {/* Tab Navigation */}
+        <div style={styles.tabContainer}>
+          <button
+            onClick={() => {
+              setActiveTab('download');
+              setDownloadMode(null);
+              setUrl('');
+              setError('');
+            }}
+            style={{
+              ...styles.tabButton,
+              ...(activeTab === 'download' ? styles.tabButtonActive : styles.tabButtonInactive)
+            }}
+          >
+            <Download style={{ display: 'inline', marginRight: '0.5rem' }} size={isMobile ? 18 : 20} />
+            Download
+          </button>
+          <button
+            onClick={() => setActiveTab('history')}
+            style={{
+              ...styles.tabButton,
+              ...(activeTab === 'history' ? styles.tabButtonActive : styles.tabButtonInactive)
+            }}
+          >
+            Library ({downloadHistory.length})
+          </button>
+        </div>
 
-      {activeTab === 'download' && (
-        <div>
-          <div style={{ marginBottom: '20px' }}>
-            <input
-              type="text"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="Enter YouTube URL"
-              style={{
-                width: '100%',
-                padding: '12px',
-                fontSize: '16px',
-                border: '1px solid #ddd',
-                borderRadius: '5px',
-                marginBottom: '10px'
-              }}
-            />
-            
-            <div style={{ marginBottom: '15px' }}>
-              <label style={{ marginRight: '15px' }}>
-                <input
-                  type="radio"
-                  value="mp4"
-                  checked={format === 'mp4'}
-                  onChange={(e) => setFormat(e.target.value)}
-                  style={{ marginRight: '5px' }}
-                />
-                MP4 (Video)
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  value="mp3"
-                  checked={format === 'mp3'}
-                  onChange={(e) => setFormat(e.target.value)}
-                  style={{ marginRight: '5px' }}
-                />
-                MP3 (Audio)
-              </label>
-            </div>
+        {/* Error Display */}
+        {error && (
+          <div style={styles.errorAlert}>
+            <XCircle size={isMobile ? 18 : 20} />
+            {error}
+          </div>
+        )}
 
-            <button
-              onClick={startDownload}
-              disabled={loading || !url}
-              style={{
-                width: '100%',
-                padding: '12px',
-                fontSize: '16px',
-                backgroundColor: loading ? '#ccc' : '#ff4444',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
-                cursor: loading ? 'not-allowed' : 'pointer',
-                marginBottom: '10px'
-              }}
-            >
-              {loading ? 'Downloading...' : 'Download'}
-            </button>
-
-            {/* Progress Bar */}
-            {(downloadStatus === 'processing' || progress > 0) && (
-              <div>
-                <ProgressBar progress={progress} status={downloadStatus} />
-                <div style={{
-                  textAlign: 'center',
-                  fontSize: '14px',
-                  color: '#666',
-                  marginBottom: '10px'
-                }}>
-                  {downloadStatus === 'completed' ? 'Download Complete!' : `Downloading... ${progress}%`}
+        {/* Download Tab */}
+        {activeTab === 'download' && (
+          <div style={styles.card}>
+            {!downloadMode ? (
+              <div style={styles.centerContent}>
+                <h3 style={{ fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: 'bold', color: '#1f2937', marginBottom: '1.5rem' }}>
+                  What would you like to download?
+                </h3>
+                <div style={styles.modeSelection}>
+                  <button
+                    onClick={() => setDownloadMode('music')}
+                    style={{
+                      ...styles.modeButton,
+                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                    }}
+                  >
+                    <Music size={isMobile ? 40 : 48} />
+                    <span style={{ fontSize: isMobile ? '1.125rem' : '1.25rem', fontWeight: 'bold' }}>Music</span>
+                    <span style={{ fontSize: '0.875rem', opacity: 0.9 }}>MP3 Audio</span>
+                  </button>
+                  <button
+                    onClick={() => setDownloadMode('videos')}
+                    style={{
+                      ...styles.modeButton,
+                      background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'
+                    }}
+                  >
+                    <Video size={isMobile ? 40 : 48} />
+                    <span style={{ fontSize: isMobile ? '1.125rem' : '1.25rem', fontWeight: 'bold' }}>Videos</span>
+                    <span style={{ fontSize: '0.875rem', opacity: 0.9 }}>MP4 Video</span>
+                  </button>
                 </div>
+              </div>
+            ) : (
+              <div>
+                {/* Mode Indicator */}
+                <div style={styles.modeIndicator}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    {downloadMode === 'music' ? <Music size={isMobile ? 20 : 24} /> : <Video size={isMobile ? 20 : 24} />}
+                    <span style={{ fontWeight: '600', fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                      Downloading as: {downloadMode === 'music' ? 'Music (MP3)' : 'Video (MP4)'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setDownloadMode(null);
+                      setUrl('');
+                    }}
+                    style={{
+                      padding: isMobile ? '0.375rem 0.75rem' : '0.5rem 1rem',
+                      backgroundColor: '#e5e7eb',
+                      borderRadius: '0.5rem',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem',
+                      width: isMobile ? '100%' : 'auto',
+                      marginTop: isMobile ? '0.5rem' : '0'
+                    }}
+                  >
+                    Change
+                  </button>
+                </div>
+
+                {/* URL Input */}
+                <div style={{ marginBottom: '1.5rem' }}>
+                  <h4 style={{ fontWeight: '600', marginBottom: '0.75rem', fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                    YouTube URL
+                  </h4>
+                  <input
+                    type="text"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder={isMobile ? "Paste YouTube link" : "Paste YouTube URL here"}
+                    style={styles.input}
+                  />
+                </div>
+
+                {/* Download Button */}
+                <button
+                  onClick={startDownload}
+                  disabled={loading || !url}
+                  style={{
+                    ...styles.downloadButton,
+                    ...(loading
+                      ? { backgroundColor: '#9ca3af', cursor: 'not-allowed' }
+                      : downloadMode === 'music'
+                      ? { background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: 'white' }
+                      : { background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)', color: 'white' })
+                  }}
+                >
+                  {loading ? (
+                    <>
+                      <Loader style={{ animation: 'spin 1s linear infinite' }} size={isMobile ? 20 : 24} />
+                      Downloading...
+                    </>
+                  ) : (
+                    <>
+                      <Download size={isMobile ? 20 : 24} />
+                      Download {downloadMode === 'music' ? 'Music' : 'Video'}
+                    </>
+                  )}
+                </button>
+
+                {/* Progress Display */}
+                {(loading || downloadStatus) && (
+                  <div style={styles.progressContainer}>
+                    {currentDownload && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem', flexDirection: isMobile ? 'column' : 'row' }}>
+                        {currentDownload.thumbnail && (
+                          <img src={currentDownload.thumbnail} alt="" style={{ ...styles.videoThumbnail, width: isMobile ? '100%' : '8rem' }} />
+                        )}
+                        <div style={{ flex: 1, width: '100%' }}>
+                          <p style={{ fontWeight: '600', fontSize: isMobile ? '0.75rem' : '0.875rem', ...styles.lineClamp1 }}>
+                            {currentDownload.title}
+                          </p>
+                          <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                            {downloadStatus === 'completed' ? 'Complete!' : downloadStatus === 'failed' ? 'Failed' : 'Downloading...'}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div style={styles.progressBar}>
+                      <div
+                        style={{
+                          ...styles.progressFill,
+                          width: `${progress}%`,
+                          backgroundColor: downloadStatus === 'completed' 
+                            ? '#10b981' 
+                            : downloadStatus === 'failed' 
+                            ? '#ef4444' 
+                            : '#3b82f6'
+                        }}
+                      >
+                        {progress}%
+                      </div>
+                    </div>
+                    {downloadStatus === 'completed' && (
+                      <div style={{ 
+                        marginTop: '0.75rem', 
+                        textAlign: 'center', 
+                        color: '#059669', 
+                        fontWeight: '600',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        fontSize: isMobile ? '0.875rem' : '1rem'
+                      }}>
+                        <CheckCircle size={isMobile ? 18 : 20} />
+                        Download Complete! Redirecting to library...
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>
+        )}
 
-          {error && (
-            <div style={{
-              padding: '10px',
-              backgroundColor: '#ffebee',
-              color: '#c62828',
-              borderRadius: '5px',
-              marginBottom: '15px',
-              border: '1px solid #ffcdd2'
-            }}>
-              {error}
-            </div>
-          )}
-
-          {downloadStatus && downloadStatus !== 'processing' && downloadStatus !== 'completed' && (
-            <div style={{
-              padding: '10px',
-              backgroundColor: '#fff3e0',
-              color: '#f57c00',
-              borderRadius: '5px',
-              marginBottom: '15px',
-              textAlign: 'center',
-              border: '1px solid #ffe0b2'
-            }}>
-              {downloadStatus === 'starting' && 'Starting download...'}
-              {downloadStatus === 'failed' && 'Download failed!'}
-            </div>
-          )}
-
-          {videoInfo && (
-            <div style={{
-              padding: '15px',
-              backgroundColor: 'white',
-              borderRadius: '5px',
-              border: '1px solid #ddd'
-            }}>
-              <h3 style={{ marginTop: 0, color: '#333' }}>Video Info</h3>
-              {videoInfo.thumbnail && (
-                <img 
-                  src={videoInfo.thumbnail} 
-                  alt="Thumbnail"
+        {/* History Tab */}
+        {activeTab === 'history' && (
+          <div style={styles.card}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: isMobile ? 'flex-start' : 'center', marginBottom: '1.5rem', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? '1rem' : '0' }}>
+              <h3 style={{ fontSize: isMobile ? '1.25rem' : '1.5rem', fontWeight: 'bold' }}>My Library</h3>
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+                <button
+                  onClick={() => setHistoryFilter('all')}
                   style={{
-                    maxWidth: '100%',
-                    height: 'auto',
-                    borderRadius: '5px',
-                    marginBottom: '10px'
+                    ...styles.button,
+                    ...(historyFilter === 'all' ? styles.buttonPrimary : { backgroundColor: '#e5e7eb' }),
+                    padding: isMobile ? '0.5rem 0.875rem' : '0.75rem 1.5rem',
+                    flex: isMobile ? '1' : 'none'
                   }}
-                />
-              )}
-              <p><strong>Title:</strong> {videoInfo.title}</p>
-              <p><strong>Uploader:</strong> {videoInfo.uploader}</p>
-              <p><strong>Duration:</strong> {formatDuration(videoInfo.duration)}</p>
-              <p><strong>Available formats:</strong> {videoInfo.formats}</p>
+                >
+                  All
+                </button>
+                <button
+                  onClick={() => setHistoryFilter('music')}
+                  style={{
+                    ...styles.button,
+                    ...(historyFilter === 'music' ? styles.buttonPrimary : { backgroundColor: '#e5e7eb' }),
+                    padding: isMobile ? '0.5rem 0.875rem' : '0.75rem 1.5rem',
+                    flex: isMobile ? '1' : 'none'
+                  }}
+                >
+                  <Music size={16} />
+                  Music
+                </button>
+                <button
+                  onClick={() => setHistoryFilter('videos')}
+                  style={{
+                    ...styles.button,
+                    ...(historyFilter === 'videos' ? styles.buttonPrimary : { backgroundColor: '#e5e7eb' }),
+                    padding: isMobile ? '0.5rem 0.875rem' : '0.75rem 1.5rem',
+                    flex: isMobile ? '1' : 'none'
+                  }}
+                >
+                  <Video size={16} />
+                  Videos
+                </button>
+                <button
+                  onClick={fetchDownloadHistory}
+                  style={{
+                    ...styles.button,
+                    padding: isMobile ? '0.5rem 0.875rem' : '0.75rem 1.5rem',
+                    backgroundColor: '#e5e7eb',
+                    width: isMobile ? '100%' : 'auto'
+                  }}
+                >
+                  Refresh
+                </button>
+              </div>
             </div>
-          )}
-        </div>
-      )}
 
-      {activeTab === 'history' && (
-        <div>
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            marginBottom: '15px'
-          }}>
-            <h3 style={{ margin: 0, color: '#333' }}>Downloaded Files</h3>
-            <button
-              onClick={fetchDownloadHistory}
-              style={{
-                padding: '8px 15px',
-                backgroundColor: '#2196F3',
-                color: 'white',
-                border: 'none',
-                borderRadius: '5px',
+            {/* Show filter status */}
+            <div style={{ marginBottom: '1rem', padding: '0.75rem', backgroundColor: '#f3f4f6', borderRadius: '0.5rem' }}>
+              <span style={{ fontWeight: '600', color: '#374151', fontSize: isMobile ? '0.875rem' : '1rem' }}>
+                Showing: 
+                {historyFilter === 'all' && ' All Downloads'}
+                {historyFilter === 'music' && ' Music (MP3)'}
+                {historyFilter === 'videos' && ' Videos (MP4)'}
+                {' '}({filteredHistory.length} items)
+              </span>
+            </div>
+
+            {filteredHistory.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: isMobile ? '3rem 0' : '4rem 0', color: '#6b7280' }}>
+                <Download size={isMobile ? 48 : 64} style={{ margin: '0 auto 1rem', opacity: 0.5 }} />
+                <p style={{ fontSize: isMobile ? '1rem' : '1.25rem' }}>
+                  {downloadHistory.length === 0 ? 'No downloads yet' : `No ${historyFilter} downloads`}
+                </p>
+                <p style={{ fontSize: isMobile ? '0.75rem' : '0.875rem' }}>
+                  {downloadHistory.length === 0 ? 'Start downloading your favorite content!' : `Try changing the filter or download some ${historyFilter}`}
+                </p>
+              </div>
+            ) : (
+              <div>
+                {filteredHistory.map(download => (
+                  <div key={download.id} style={styles.historyItem}>
+                    <img src={download.thumbnail} alt="" style={styles.historyThumbnail} />
+                    <div style={{ flex: 1, width: '100%' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
+                        <h4 style={{ fontWeight: '600', ...styles.lineClamp2, fontSize: isMobile ? '0.875rem' : '1rem', flex: 1 }}>{download.title}</h4>
+                        <span style={{
+                          padding: '0.25rem 0.5rem',
+                          borderRadius: '0.25rem',
+                          fontSize: '0.75rem',
+                          fontWeight: 'bold',
+                          backgroundColor: download.format === 'mp3' ? '#10b981' : '#f59e0b',
+                          color: 'white'
+                        }}>
+                          {download.format.toUpperCase()}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: isMobile ? '0.75rem' : '0.875rem', color: '#6b7280' }}>
+                        <p>Format: {download.format.toUpperCase()}</p>
+                        <p>Size: {formatFileSize(download.file_size)}</p>
+                        {download.duration > 0 && <p>Duration: {formatDuration(download.duration)}</p>}
+                      </div>
+                      <div style={styles.actionButtons}>
+                        <button
+                          onClick={() => window.open(`${API_BASE}/play-file/?path=${encodeURIComponent(download.file_path)}`, '_blank')}
+                          style={{ 
+                            ...styles.button, 
+                            ...styles.buttonPrimary,
+                            flex: isMobile ? '1' : 'none',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <Play size={16} />
+                          {!isMobile && 'Play'}
+                        </button>
+                        <button
+                          onClick={() => window.open(`${API_BASE}/download-file/?path=${encodeURIComponent(download.file_path)}`, '_blank')}
+                          style={{ 
+                            ...styles.button, 
+                            backgroundColor: '#059669', 
+                            color: 'white',
+                            flex: isMobile ? '1' : 'none',
+                            justifyContent: 'center'
+                          }}
+                        >
+                          <Download size={16} />
+                          {!isMobile && 'Download'}
+                        </button>
+                        <button
+                          onClick={() => deleteDownload(download.id, download.file_name)}
+                          style={{ 
+                            ...styles.button, 
+                            backgroundColor: '#dc2626', 
+                            color: 'white',
+                            flex: isMobile ? '0' : 'none',
+                            justifyContent: 'center',
+                            padding: isMobile ? '0.625rem' : '0.75rem 1.5rem'
+                          }}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Footer */}
+        <div style={styles.footer}>
+          <p>
+            For educational/personal use only not business created by{' '}
+            <a 
+              href="https://www.mfundodev.com" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={{ 
+                color: '#2563eb', 
+                textDecoration: 'underline',
                 cursor: 'pointer'
               }}
             >
-              🔄 Refresh
-            </button>
-          </div>
-
-          {downloadHistory.length === 0 ? (
-            <div style={{
-              padding: '40px',
-              textAlign: 'center',
-              backgroundColor: 'white',
-              borderRadius: '5px',
-              border: '1px solid #ddd',
-              color: '#666'
-            }}>
-              No downloads yet. Start by downloading a video!
-            </div>
-          ) : (
-            <div>
-              {downloadHistory.map(download => (
-                <DownloadItem key={download.id} download={download} />
-              ))}
-            </div>
-          )}
+              mfundodev.com
+            </a>
+          </p>
         </div>
-      )}
-
-      <div style={{ 
-        marginTop: '20px', 
-        fontSize: '12px', 
-        color: '#666',
-        textAlign: 'center'
-      }}>
-        <p>Note: This tool is for educational purposes only.</p>
-        <p>Please respect copyright laws and YouTube's terms of service.</p>
       </div>
+
+      <style>
+        {`
+          @keyframes spin {
+            from {
+              transform: rotate(0deg);
+            }
+            to {
+              transform: rotate(360deg);
+            }
+          }
+        `}
+      </style>
     </div>
   );
 };
