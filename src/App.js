@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Music, Video, Download, Trash2, Play, CheckCircle, XCircle, Loader } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { Music, Video, Download, Trash2, Play, CheckCircle, XCircle, Loader, SkipBack, SkipForward, Volume2, VolumeX, Repeat, Shuffle, List, X } from 'lucide-react';
 
 const YouTubeDownloader = () => {
   const [url, setUrl] = useState('');
@@ -14,8 +14,39 @@ const YouTubeDownloader = () => {
   const [historyFilter, setHistoryFilter] = useState('all');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [deviceId, setDeviceId] = useState(null);
+  
+  // Media player states
+  const [currentMedia, setCurrentMedia] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [volume, setVolume] = useState(1);
+  const [isMuted, setIsMuted] = useState(false);
+  const [repeatMode, setRepeatMode] = useState('off'); // 'off', 'one', 'all'
+  const [shuffleMode, setShuffleMode] = useState(false);
+  const [showPlaylist, setShowPlaylist] = useState(false);
+  const [playlist, setPlaylist] = useState([]);
+  const [currentPlaylistIndex, setCurrentPlaylistIndex] = useState(0);
+
+  const audioRef = useRef(null);
+  const videoRef = useRef(null);
 
   const API_BASE = 'http://localhost:8000/api';
+
+  // Define lineClamp styles as constants outside the styles object
+  const lineClamp1 = {
+    display: '-webkit-box',
+    WebkitLineClamp: 1,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden'
+  };
+
+  const lineClamp2 = {
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden'
+  };
 
   // Generate or retrieve device ID
   useEffect(() => {
@@ -26,7 +57,6 @@ const YouTubeDownloader = () => {
                    '_' + Date.now().toString(36);
         localStorage.setItem('youtube_downloader_device_id', deviceId);
         
-        // Also store some device characteristics for verification (optional)
         const deviceInfo = {
           userAgent: navigator.userAgent,
           language: navigator.language,
@@ -48,6 +78,151 @@ const YouTubeDownloader = () => {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  // Initialize playlist from download history when history changes
+  useEffect(() => {
+    if (downloadHistory.length > 0) {
+      setPlaylist(downloadHistory);
+    }
+  }, [downloadHistory]);
+
+  // Media player controls
+  const togglePlayPause = () => {
+    if (currentMedia) {
+      if (currentMedia.format === 'mp3') {
+        if (isPlaying) {
+          audioRef.current.pause();
+        } else {
+          audioRef.current.play();
+        }
+      } else {
+        if (isPlaying) {
+          videoRef.current.pause();
+        } else {
+          videoRef.current.play();
+        }
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const playMedia = (media, index = 0) => {
+    setCurrentMedia(media);
+    setCurrentPlaylistIndex(index);
+    setIsPlaying(true);
+    
+    // Auto-play after a short delay to ensure ref is set
+    setTimeout(() => {
+      if (media.format === 'mp3' && audioRef.current) {
+        audioRef.current.play();
+      } else if (videoRef.current) {
+        videoRef.current.play();
+      }
+    }, 100);
+  };
+
+  const playNext = () => {
+    if (playlist.length === 0) return;
+    
+    let nextIndex;
+    if (shuffleMode) {
+      nextIndex = Math.floor(Math.random() * playlist.length);
+    } else {
+      nextIndex = (currentPlaylistIndex + 1) % playlist.length;
+    }
+    
+    if (repeatMode === 'one') {
+      // Restart current media
+      setCurrentTime(0);
+      if (currentMedia.format === 'mp3' && audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play();
+      } else if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+      }
+    } else {
+      playMedia(playlist[nextIndex], nextIndex);
+    }
+  };
+
+  const playPrevious = () => {
+    if (playlist.length === 0) return;
+    
+    let prevIndex;
+    if (shuffleMode) {
+      prevIndex = Math.floor(Math.random() * playlist.length);
+    } else {
+      prevIndex = (currentPlaylistIndex - 1 + playlist.length) % playlist.length;
+    }
+    
+    playMedia(playlist[prevIndex], prevIndex);
+  };
+
+  const toggleRepeat = () => {
+    const modes = ['off', 'one', 'all'];
+    const currentIndex = modes.indexOf(repeatMode);
+    setRepeatMode(modes[(currentIndex + 1) % modes.length]);
+  };
+
+  const toggleShuffle = () => {
+    setShuffleMode(!shuffleMode);
+  };
+
+  const handleTimeUpdate = () => {
+    if (currentMedia) {
+      const mediaElement = currentMedia.format === 'mp3' ? audioRef.current : videoRef.current;
+      if (mediaElement) {
+        setCurrentTime(mediaElement.currentTime);
+        setDuration(mediaElement.duration || 0);
+      }
+    }
+  };
+
+  const handleSeek = (e) => {
+    const seekTime = parseFloat(e.target.value);
+    setCurrentTime(seekTime);
+    
+    if (currentMedia) {
+      const mediaElement = currentMedia.format === 'mp3' ? audioRef.current : videoRef.current;
+      if (mediaElement) {
+        mediaElement.currentTime = seekTime;
+      }
+    }
+  };
+
+  const handleVolumeChange = (e) => {
+    const newVolume = parseFloat(e.target.value);
+    setVolume(newVolume);
+    setIsMuted(newVolume === 0);
+    
+    if (audioRef.current) audioRef.current.volume = newVolume;
+    if (videoRef.current) videoRef.current.volume = newVolume;
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    if (audioRef.current) audioRef.current.muted = !isMuted;
+    if (videoRef.current) videoRef.current.muted = !isMuted;
+  };
+
+  const handleMediaEnd = () => {
+    if (repeatMode === 'one') {
+      // Restart current media
+      setCurrentTime(0);
+      if (currentMedia.format === 'mp3' && audioRef.current) {
+        audioRef.current.currentTime = 0;
+        audioRef.current.play();
+      } else if (videoRef.current) {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play();
+      }
+    } else if (repeatMode === 'all' || shuffleMode) {
+      playNext();
+    } else {
+      setIsPlaying(false);
+    }
+  };
 
   // Filter history based on selected filter
   const filteredHistory = downloadHistory.filter(item => {
@@ -117,7 +292,7 @@ const YouTubeDownloader = () => {
         body: JSON.stringify({ 
           url: url, 
           format: formatType,
-          device_id: deviceId  // Include device ID
+          device_id: deviceId
         }),
       });
 
@@ -212,6 +387,14 @@ const YouTubeDownloader = () => {
 
         if (response.ok) {
           setDownloadHistory(downloadHistory.filter(item => item.id !== downloadId));
+          // Also remove from playlist if it's there
+          setPlaylist(playlist.filter(item => item.id !== downloadId));
+          
+          // If current media is deleted, stop playback
+          if (currentMedia && currentMedia.id === downloadId) {
+            setCurrentMedia(null);
+            setIsPlaying(false);
+          }
         } else {
           const data = await response.json();
           setError(data.error || 'Failed to delete file');
@@ -237,11 +420,19 @@ const YouTubeDownloader = () => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  const formatTime = (seconds) => {
+    if (isNaN(seconds)) return '0:00';
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+  };
+
   const styles = {
     container: {
       minHeight: '100vh',
       background: 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%)',
-      padding: isMobile ? '0.5rem' : '1rem'
+      padding: isMobile ? '0.5rem' : '1rem',
+      paddingBottom: currentMedia ? (isMobile ? '120px' : '100px') : (isMobile ? '0.5rem' : '1rem')
     },
     wrapper: {
       maxWidth: '1200px',
@@ -440,17 +631,186 @@ const YouTubeDownloader = () => {
       fontSize: isMobile ? '0.75rem' : '0.875rem',
       color: '#6b7280'
     },
-    lineClamp1: {
-      display: '-webkit-box',
-      WebkitLineClamp: 1,
-      WebkitBoxOrient: 'vertical',
-      overflow: 'hidden'
+    // Media player styles
+    mediaPlayer: {
+      position: 'fixed',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: 'white',
+      borderTop: '1px solid #e5e7eb',
+      padding: isMobile ? '0.75rem' : '1rem',
+      boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1)',
+      zIndex: 1000
     },
-    lineClamp2: {
-      display: '-webkit-box',
-      WebkitLineClamp: 2,
-      WebkitBoxOrient: 'vertical',
-      overflow: 'hidden'
+    playerControls: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: isMobile ? '0.5rem' : '1rem',
+      flexDirection: isMobile ? 'column' : 'row'
+    },
+    playerInfo: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.75rem',
+      flex: 1,
+      minWidth: 0
+    },
+    playerThumbnail: {
+      width: isMobile ? '40px' : '50px',
+      height: isMobile ? '40px' : '50px',
+      borderRadius: '0.375rem',
+      objectFit: 'cover'
+    },
+    playerText: {
+      minWidth: 0,
+      flex: 1
+    },
+    playerTitle: {
+      fontWeight: '600',
+      fontSize: isMobile ? '0.875rem' : '1rem',
+      ...lineClamp1
+    },
+    playerSubtitle: {
+      color: '#6b7280',
+      fontSize: isMobile ? '0.75rem' : '0.875rem'
+    },
+    controlButtons: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem'
+    },
+    controlButton: {
+      padding: isMobile ? '0.375rem' : '0.5rem',
+      borderRadius: '50%',
+      border: 'none',
+      backgroundColor: '#f3f4f6',
+      cursor: 'pointer',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center'
+    },
+    playButton: {
+      padding: isMobile ? '0.5rem' : '0.75rem',
+      backgroundColor: '#2563eb',
+      color: 'white'
+    },
+    progressSection: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.75rem',
+      flex: 2,
+      width: isMobile ? '100%' : 'auto'
+    },
+    timeDisplay: {
+      fontSize: isMobile ? '0.75rem' : '0.875rem',
+      color: '#6b7280',
+      minWidth: '40px'
+    },
+    progressSlider: {
+      flex: 1,
+      height: '4px',
+      borderRadius: '2px',
+      backgroundColor: '#e5e7eb',
+      outline: 'none',
+      cursor: 'pointer'
+    },
+    volumeSection: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.5rem',
+      flex: isMobile ? 1 : 'none'
+    },
+    volumeSlider: {
+      width: isMobile ? '60px' : '80px',
+      height: '4px',
+      borderRadius: '2px',
+      backgroundColor: '#e5e7eb',
+      outline: 'none',
+      cursor: 'pointer'
+    },
+    // Playlist styles
+    playlistOverlay: {
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      zIndex: 2000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: isMobile ? '1rem' : '2rem'
+    },
+    playlistModal: {
+      backgroundColor: 'white',
+      borderRadius: '1rem',
+      width: '100%',
+      maxWidth: '500px',
+      maxHeight: '80vh',
+      overflow: 'hidden',
+      display: 'flex',
+      flexDirection: 'column'
+    },
+    playlistHeader: {
+      padding: '1rem 1.5rem',
+      borderBottom: '1px solid #e5e7eb',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between'
+    },
+    playlistTitle: {
+      fontWeight: 'bold',
+      fontSize: '1.25rem'
+    },
+    playlistClose: {
+      padding: '0.5rem',
+      borderRadius: '0.375rem',
+      border: 'none',
+      backgroundColor: '#f3f4f6',
+      cursor: 'pointer'
+    },
+    playlistContent: {
+      flex: 1,
+      overflow: 'auto',
+      padding: '0.5rem'
+    },
+    playlistItem: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '0.75rem',
+      padding: '0.75rem',
+      borderRadius: '0.5rem',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s'
+    },
+    playlistItemActive: {
+      backgroundColor: '#dbeafe'
+    },
+    playlistItemThumbnail: {
+      width: '40px',
+      height: '40px',
+      borderRadius: '0.375rem',
+      objectFit: 'cover'
+    },
+    playlistItemText: {
+      flex: 1,
+      minWidth: 0
+    },
+    playlistItemTitle: {
+      fontWeight: '500',
+      fontSize: '0.875rem',
+      ...lineClamp1
+    },
+    playlistItemSubtitle: {
+      color: '#6b7280',
+      fontSize: '0.75rem'
+    },
+    activeIndicator: {
+      color: '#2563eb',
+      fontSize: '0.75rem',
+      fontWeight: 'bold'
     }
   };
 
@@ -611,7 +971,7 @@ const YouTubeDownloader = () => {
                           <img src={currentDownload.thumbnail} alt="" style={{ ...styles.videoThumbnail, width: isMobile ? '100%' : '8rem' }} />
                         )}
                         <div style={{ flex: 1, width: '100%' }}>
-                          <p style={{ fontWeight: '600', fontSize: isMobile ? '0.75rem' : '0.875rem', ...styles.lineClamp1 }}>
+                          <p style={{ fontWeight: '600', fontSize: isMobile ? '0.75rem' : '0.875rem', ...lineClamp1 }}>
                             {currentDownload.title}
                           </p>
                           <p style={{ fontSize: '0.75rem', color: '#6b7280' }}>
@@ -736,12 +1096,12 @@ const YouTubeDownloader = () => {
               </div>
             ) : (
               <div>
-                {filteredHistory.map(download => (
+                {filteredHistory.map((download, index) => (
                   <div key={download.id} style={styles.historyItem}>
                     <img src={download.thumbnail} alt="" style={styles.historyThumbnail} />
                     <div style={{ flex: 1, width: '100%' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem', flexWrap: 'wrap' }}>
-                        <h4 style={{ fontWeight: '600', ...styles.lineClamp2, fontSize: isMobile ? '0.875rem' : '1rem', flex: 1 }}>{download.title}</h4>
+                        <h4 style={{ fontWeight: '600', ...lineClamp2, fontSize: isMobile ? '0.875rem' : '1rem', flex: 1 }}>{download.title}</h4>
                         <span style={{
                           padding: '0.25rem 0.5rem',
                           borderRadius: '0.25rem',
@@ -760,7 +1120,7 @@ const YouTubeDownloader = () => {
                       </div>
                       <div style={styles.actionButtons}>
                         <button
-                          onClick={() => window.open(`${API_BASE}/play-file/?path=${encodeURIComponent(download.file_path)}`, '_blank')}
+                          onClick={() => playMedia(download, index)}
                           style={{ 
                             ...styles.button, 
                             ...styles.buttonPrimary,
@@ -809,7 +1169,7 @@ const YouTubeDownloader = () => {
         {/* Footer */}
         <div style={styles.footer}>
           <p>
-            For educational/personal use only not business created by{' '}
+            This app is created for educational/personal use only not business! created by{' '}
             <a 
               href="https://www.mfundodev.com" 
               target="_blank" 
@@ -826,6 +1186,198 @@ const YouTubeDownloader = () => {
         </div>
       </div>
 
+      {/* Media Player */}
+      {currentMedia && (
+        <div style={styles.mediaPlayer}>
+          <div style={styles.playerControls}>
+            {/* Media Info */}
+            <div style={styles.playerInfo}>
+              <img src={currentMedia.thumbnail} alt="" style={styles.playerThumbnail} />
+              <div style={styles.playerText}>
+                <div style={styles.playerTitle}>{currentMedia.title}</div>
+                <div style={styles.playerSubtitle}>
+                  {currentMedia.format.toUpperCase()} • {formatFileSize(currentMedia.file_size)}
+                </div>
+              </div>
+            </div>
+
+            {/* Control Buttons */}
+            <div style={styles.controlButtons}>
+              <button
+                onClick={toggleShuffle}
+                style={{
+                  ...styles.controlButton,
+                  color: shuffleMode ? '#2563eb' : '#6b7280'
+                }}
+                title="Shuffle"
+              >
+                <Shuffle size={isMobile ? 16 : 18} />
+              </button>
+              
+              <button
+                onClick={playPrevious}
+                style={styles.controlButton}
+                title="Previous"
+              >
+                <SkipBack size={isMobile ? 16 : 18} />
+              </button>
+              
+              <button
+                onClick={togglePlayPause}
+                style={{
+                  ...styles.controlButton,
+                  ...styles.playButton
+                }}
+                title={isPlaying ? "Pause" : "Play"}
+              >
+                {isPlaying ? (
+                  <div style={{ width: isMobile ? '16px' : '18px', height: isMobile ? '16px' : '18px', backgroundColor: 'white' }} />
+                ) : (
+                  <Play size={isMobile ? 16 : 18} fill="white" />
+                )}
+              </button>
+              
+              <button
+                onClick={playNext}
+                style={styles.controlButton}
+                title="Next"
+              >
+                <SkipForward size={isMobile ? 16 : 18} />
+              </button>
+              
+              <button
+                onClick={toggleRepeat}
+                style={{
+                  ...styles.controlButton,
+                  color: repeatMode !== 'off' ? '#2563eb' : '#6b7280'
+                }}
+                title={`Repeat: ${repeatMode}`}
+              >
+                <Repeat size={isMobile ? 16 : 18} />
+                {repeatMode === 'one' && (
+                  <span style={{ 
+                    position: 'absolute', 
+                    fontSize: '8px', 
+                    fontWeight: 'bold',
+                    marginTop: '-8px'
+                  }}>1</span>
+                )}
+              </button>
+            </div>
+
+            {/* Progress Bar */}
+            <div style={styles.progressSection}>
+              <span style={styles.timeDisplay}>{formatTime(currentTime)}</span>
+              <input
+                type="range"
+                min="0"
+                max={duration || 0}
+                value={currentTime}
+                onChange={handleSeek}
+                style={styles.progressSlider}
+              />
+              <span style={styles.timeDisplay}>{formatTime(duration)}</span>
+            </div>
+
+            {/* Volume Control */}
+            <div style={styles.volumeSection}>
+              <button
+                onClick={toggleMute}
+                style={styles.controlButton}
+                title={isMuted ? "Unmute" : "Mute"}
+              >
+                {isMuted || volume === 0 ? (
+                  <VolumeX size={isMobile ? 16 : 18} />
+                ) : (
+                  <Volume2 size={isMobile ? 16 : 18} />
+                )}
+              </button>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={volume}
+                onChange={handleVolumeChange}
+                style={styles.volumeSlider}
+              />
+            </div>
+
+            {/* Playlist Button */}
+            <button
+              onClick={() => setShowPlaylist(true)}
+              style={styles.controlButton}
+              title="Playlist"
+            >
+              <List size={isMobile ? 16 : 18} />
+            </button>
+          </div>
+
+          {/* Hidden Media Elements */}
+          {currentMedia.format === 'mp3' ? (
+            <audio
+              ref={audioRef}
+              src={`${API_BASE}/play-file/?path=${encodeURIComponent(currentMedia.file_path)}`}
+              onTimeUpdate={handleTimeUpdate}
+              onEnded={handleMediaEnd}
+              onLoadedMetadata={handleTimeUpdate}
+            />
+          ) : (
+            <video
+              ref={videoRef}
+              src={`${API_BASE}/play-file/?path=${encodeURIComponent(currentMedia.file_path)}`}
+              onTimeUpdate={handleTimeUpdate}
+              onEnded={handleMediaEnd}
+              onLoadedMetadata={handleTimeUpdate}
+              style={{ display: 'none' }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Playlist Modal */}
+      {showPlaylist && (
+        <div style={styles.playlistOverlay} onClick={() => setShowPlaylist(false)}>
+          <div style={styles.playlistModal} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.playlistHeader}>
+              <h3 style={styles.playlistTitle}>Playlist ({playlist.length} items)</h3>
+              <button
+                onClick={() => setShowPlaylist(false)}
+                style={styles.playlistClose}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div style={styles.playlistContent}>
+              {playlist.map((item, index) => (
+                <div
+                  key={item.id}
+                  onClick={() => {
+                    playMedia(item, index);
+                    setShowPlaylist(false);
+                  }}
+                  style={{
+                    ...styles.playlistItem,
+                    ...(currentMedia && currentMedia.id === item.id ? styles.playlistItemActive : {})
+                  }}
+                >
+                  <img src={item.thumbnail} alt="" style={styles.playlistItemThumbnail} />
+                  <div style={styles.playlistItemText}>
+                    <div style={styles.playlistItemTitle}>{item.title}</div>
+                    <div style={styles.playlistItemSubtitle}>
+                      {item.format.toUpperCase()} • {formatFileSize(item.file_size)}
+                    </div>
+                  </div>
+                  {currentMedia && currentMedia.id === item.id && (
+                    <div style={styles.activeIndicator}>▶</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>
         {`
           @keyframes spin {
@@ -835,6 +1387,45 @@ const YouTubeDownloader = () => {
             to {
               transform: rotate(360deg);
             }
+          }
+          
+          input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            background: transparent;
+            cursor: pointer;
+          }
+          
+          input[type="range"]::-webkit-slider-track {
+            background: #e5e7eb;
+            height: 4px;
+            border-radius: 2px;
+          }
+          
+          input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            background: #2563eb;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            cursor: pointer;
+          }
+          
+          input[type="range"]::-moz-range-track {
+            background: #e5e7eb;
+            height: 4px;
+            border-radius: 2px;
+            border: none;
+          }
+          
+          input[type="range"]::-moz-range-thumb {
+            background: #2563eb;
+            height: 16px;
+            width: 16px;
+            border-radius: 50%;
+            cursor: pointer;
+            border: none;
           }
         `}
       </style>
