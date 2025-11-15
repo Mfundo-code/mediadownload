@@ -12,12 +12,6 @@ import re
 # Global dictionary to store progress
 download_progress = {}
 
-def get_session_id(request):
-    """Get or create session ID"""
-    if not request.session.session_key:
-        request.session.create()
-    return request.session.session_key
-
 def progress_hook(d, download_request_id):
     """Enhanced progress hook with better percentage tracking"""
     if d['status'] == 'downloading':
@@ -64,6 +58,7 @@ def extract_video_id(url):
         r'(?:embed\/)([0-9A-Za-z_-]{11})',
         r'(?:watch\?v=)([0-9A-Za-z_-]{11})',
         r'youtu\.be\/([0-9A-Za-z_-]{11})',
+        r'list=RD([0-9A-Za-z_-]{11})',  # YouTube Mix/Radio playlists
     ]
     
     for pattern in patterns:
@@ -176,13 +171,16 @@ def download_video(url, format_type, download_request):
 @require_http_methods(["POST"])
 def start_download(request):
     try:
-        session_id = get_session_id(request)
         data = json.loads(request.body)
         url = data.get('url')
         format_type = data.get('format', 'mp4')
+        device_id = data.get('device_id')  # Get device_id from request
         
         if not url:
             return JsonResponse({'error': 'URL is required'}, status=400)
+        
+        if not device_id:
+            return JsonResponse({'error': 'Device ID is required'}, status=400)
         
         # Validate URL
         if 'youtube.com' not in url and 'youtu.be' not in url:
@@ -196,7 +194,8 @@ def start_download(request):
             url=url,
             format_choice=format_type,
             status='processing',
-            session_id=session_id  # Store session ID
+            device_id=device_id,
+            user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
         thread = threading.Thread(
@@ -217,8 +216,7 @@ def start_download(request):
 @require_http_methods(["GET"])
 def check_status(request, request_id):
     try:
-        session_id = get_session_id(request)
-        download_request = DownloadRequest.objects.get(id=request_id, session_id=session_id)
+        download_request = DownloadRequest.objects.get(id=request_id)
         progress = download_progress.get(request_id, 0)
         
         response_data = {
@@ -289,10 +287,15 @@ def get_video_info(request):
 @require_http_methods(["GET"])
 def get_download_history(request):
     try:
-        session_id = get_session_id(request)
+        device_id = request.GET.get('device_id')
+        
+        if not device_id:
+            return JsonResponse({'error': 'Device ID is required'}, status=400)
+        
+        # Only return downloads for this specific device
         completed_downloads = DownloadRequest.objects.filter(
             status='completed', 
-            session_id=session_id
+            device_id=device_id
         ).order_by('-created_at')
         
         downloads_list = []
@@ -321,8 +324,13 @@ def get_download_history(request):
 @require_http_methods(["DELETE"])
 def delete_download(request, download_id):
     try:
-        session_id = get_session_id(request)
-        download = DownloadRequest.objects.get(id=download_id, session_id=session_id)
+        device_id = request.GET.get('device_id') or json.loads(request.body).get('device_id')
+        
+        if not device_id:
+            return JsonResponse({'error': 'Device ID is required'}, status=400)
+        
+        # Only allow deletion if the download belongs to this device
+        download = DownloadRequest.objects.get(id=download_id, device_id=device_id)
         
         if download.file_path and os.path.exists(download.file_path):
             os.remove(download.file_path)
@@ -333,7 +341,7 @@ def delete_download(request, download_id):
         return JsonResponse({'message': 'File deleted successfully'})
         
     except DownloadRequest.DoesNotExist:
-        return JsonResponse({'error': 'Download not found'}, status=404)
+        return JsonResponse({'error': 'Download not found or access denied'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
 

@@ -13,8 +13,33 @@ const YouTubeDownloader = () => {
   const [currentDownload, setCurrentDownload] = useState(null);
   const [historyFilter, setHistoryFilter] = useState('all');
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [deviceId, setDeviceId] = useState(null);
 
-  const API_BASE = 'https://youtubedownloader.207.180.201.93.sslip.io/api';
+  const API_BASE = 'http://localhost:8000/api';
+
+  // Generate or retrieve device ID
+  useEffect(() => {
+    const generateDeviceId = () => {
+      let deviceId = localStorage.getItem('youtube_downloader_device_id');
+      if (!deviceId) {
+        deviceId = 'device_' + Math.random().toString(36).substr(2, 9) + 
+                   '_' + Date.now().toString(36);
+        localStorage.setItem('youtube_downloader_device_id', deviceId);
+        
+        // Also store some device characteristics for verification (optional)
+        const deviceInfo = {
+          userAgent: navigator.userAgent,
+          language: navigator.language,
+          platform: navigator.platform,
+          timestamp: new Date().toISOString()
+        };
+        localStorage.setItem('device_info', JSON.stringify(deviceInfo));
+      }
+      setDeviceId(deviceId);
+    };
+    
+    generateDeviceId();
+  }, []);
 
   useEffect(() => {
     const handleResize = () => {
@@ -32,57 +57,31 @@ const YouTubeDownloader = () => {
     return true;
   });
 
-  const validateYouTubeUrl = (url) => {
-    if (!url) return 'Please enter a YouTube URL';
-    
-    // Basic YouTube URL patterns
-    const youtubePatterns = [
-      /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=)([a-zA-Z0-9_-]{11})/,
-      /^(https?:\/\/)?(www\.)?(youtu\.be\/)([a-zA-Z0-9_-]{11})/,
-      /^(https?:\/\/)?(www\.)?(youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
-      /^(https?:\/\/)?(www\.)?(youtube\.com\/v\/)([a-zA-Z0-9_-]{11})/,
-    ];
-
-    const isValid = youtubePatterns.some(pattern => pattern.test(url));
-    
-    if (!isValid) {
-      return 'Please enter a valid YouTube URL (e.g., https://www.youtube.com/watch?v=...)';
-    }
-
-    return null;
-  };
-
-  const clearError = () => {
-    setError('');
-  };
-
   const fetchDownloadHistory = useCallback(async () => {
+    if (!deviceId) return;
+    
     try {
-      const response = await fetch(`${API_BASE}/downloads/history/`);
+      const response = await fetch(`${API_BASE}/downloads/history/?device_id=${encodeURIComponent(deviceId)}`);
       if (response.ok) {
         const data = await response.json();
         setDownloadHistory(data);
       } else {
         const errorData = await response.json();
-        setError(errorData.error || 'Failed to fetch download history');
+        setError(errorData.error || 'Failed to fetch history');
       }
     } catch (err) {
       console.error('Failed to fetch download history', err);
-      setError('Network error: Unable to fetch download history');
+      setError('Failed to connect to server');
     }
-  }, []);
+  }, [deviceId]);
 
   useEffect(() => {
-    if (activeTab === 'history') {
+    if (activeTab === 'history' && deviceId) {
       fetchDownloadHistory();
     }
-  }, [activeTab, fetchDownloadHistory]);
+  }, [activeTab, fetchDownloadHistory, deviceId]);
 
   const startDownload = async () => {
-    // Clear previous errors
-    clearError();
-
-    // Validate inputs
     if (!url) {
       setError('Please enter a YouTube URL');
       return;
@@ -93,10 +92,8 @@ const YouTubeDownloader = () => {
       return;
     }
 
-    // Validate YouTube URL
-    const urlError = validateYouTubeUrl(url);
-    if (urlError) {
-      setError(urlError);
+    if (!deviceId) {
+      setError('Device not initialized. Please refresh the page.');
       return;
     }
 
@@ -118,8 +115,9 @@ const YouTubeDownloader = () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          url: url.trim(), 
-          format: formatType 
+          url: url, 
+          format: formatType,
+          device_id: deviceId  // Include device ID
         }),
       });
 
@@ -129,12 +127,12 @@ const YouTubeDownloader = () => {
         setDownloadStatus('processing');
         pollDownloadStatus(data.request_id);
       } else {
-        setError(data.error || 'Failed to start download. Please try again.');
+        setError(data.error || 'Failed to start download');
         setLoading(false);
         setDownloadStatus(null);
       }
     } catch (err) {
-      setError('Network error: Failed to connect to server. Please check your connection.');
+      setError('Failed to connect to server');
       setLoading(false);
       setDownloadStatus(null);
     }
@@ -142,39 +140,18 @@ const YouTubeDownloader = () => {
 
   const pollDownloadStatus = async (id) => {
     let pollCount = 0;
-    const maxPolls = 300; // 5 minutes timeout (300 * 1000ms)
-    let lastProgress = 0;
-    let stuckProgressCount = 0;
+    const maxPolls = 200;
     
     const poll = async () => {
       if (pollCount >= maxPolls) {
-        setError('Download timeout. The download is taking longer than expected. Please try again.');
+        setError('Download timeout. Please try again.');
         setLoading(false);
         setDownloadStatus(null);
         return;
       }
 
-      // Check if progress is stuck (same progress for 30 seconds)
-      if (progress === lastProgress) {
-        stuckProgressCount++;
-        if (stuckProgressCount > 30) {
-          setError('Download seems to be stuck. Please try again with a different video.');
-          setLoading(false);
-          setDownloadStatus(null);
-          return;
-        }
-      } else {
-        lastProgress = progress;
-        stuckProgressCount = 0;
-      }
-
       try {
         const response = await fetch(`${API_BASE}/status/${id}/`);
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        
         const data = await response.json();
 
         if (data.progress !== undefined) {
@@ -184,8 +161,7 @@ const YouTubeDownloader = () => {
         if (data.video_title && currentDownload) {
           setCurrentDownload(prev => ({
             ...prev,
-            title: data.video_title,
-            thumbnail: data.video_thumbnail || prev.thumbnail
+            title: data.video_title
           }));
         }
 
@@ -204,7 +180,7 @@ const YouTubeDownloader = () => {
           }, 1500);
         } else if (data.status === 'failed') {
           setDownloadStatus('failed');
-          setError(data.error || 'Download failed. The video might be unavailable or restricted.');
+          setError(data.error || 'Download failed. Please try again.');
           setLoading(false);
           setProgress(0);
         } else {
@@ -213,7 +189,7 @@ const YouTubeDownloader = () => {
         }
       } catch (err) {
         console.error('Polling error:', err);
-        setError('Failed to check download status. Please check your connection.');
+        setError('Failed to check download status');
         setLoading(false);
         setDownloadStatus(null);
       }
@@ -223,22 +199,25 @@ const YouTubeDownloader = () => {
   };
 
   const deleteDownload = async (downloadId, fileName) => {
-    if (window.confirm(`Are you sure you want to delete "${fileName}"? This action cannot be undone.`)) {
+    if (!deviceId) {
+      setError('Device not initialized');
+      return;
+    }
+
+    if (window.confirm(`Delete "${fileName}"?`)) {
       try {
-        const response = await fetch(`${API_BASE}/downloads/delete/${downloadId}/`, {
+        const response = await fetch(`${API_BASE}/downloads/delete/${downloadId}/?device_id=${encodeURIComponent(deviceId)}`, {
           method: 'DELETE',
         });
 
         if (response.ok) {
           setDownloadHistory(downloadHistory.filter(item => item.id !== downloadId));
-          // Show success message
-          setError('');
         } else {
           const data = await response.json();
-          setError(data.error || 'Failed to delete file. Please try again.');
+          setError(data.error || 'Failed to delete file');
         }
       } catch (err) {
-        setError('Network error: Failed to delete file. Please check your connection.');
+        setError('Failed to delete file');
       }
     }
   };
@@ -256,23 +235,6 @@ const YouTubeDownloader = () => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
-  };
-
-  const handleUrlChange = (newUrl) => {
-    setUrl(newUrl);
-    // Clear error when user starts typing
-    if (error && error.includes('YouTube URL')) {
-      clearError();
-    }
-  };
-
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    clearError(); // Clear errors when switching tabs
-    if (tab === 'download') {
-      setDownloadMode(null);
-      setUrl('');
-    }
   };
 
   const styles = {
@@ -333,16 +295,7 @@ const YouTubeDownloader = () => {
       display: 'flex',
       alignItems: 'center',
       gap: '0.5rem',
-      fontSize: isMobile ? '0.875rem' : '1rem',
-      position: 'relative'
-    },
-    closeErrorButton: {
-      background: 'none',
-      border: 'none',
-      color: '#991b1b',
-      cursor: 'pointer',
-      padding: '0.25rem',
-      marginLeft: 'auto'
+      fontSize: isMobile ? '0.875rem' : '1rem'
     },
     card: {
       backgroundColor: 'white',
@@ -394,12 +347,7 @@ const YouTubeDownloader = () => {
       outline: 'none',
       fontSize: isMobile ? '0.875rem' : '1rem',
       width: '100%',
-      boxSizing: 'border-box',
-      transition: 'border-color 0.2s ease'
-    },
-    inputError: {
-      borderColor: '#ef4444',
-      backgroundColor: '#fef2f2'
+      boxSizing: 'border-box'
     },
     button: {
       padding: isMobile ? '0.625rem 1rem' : '0.75rem 1.5rem',
@@ -410,8 +358,7 @@ const YouTubeDownloader = () => {
       alignItems: 'center',
       gap: '0.5rem',
       fontWeight: '500',
-      fontSize: isMobile ? '0.875rem' : '1rem',
-      transition: 'all 0.2s ease'
+      fontSize: isMobile ? '0.875rem' : '1rem'
     },
     buttonPrimary: {
       backgroundColor: '#2563eb',
@@ -504,12 +451,6 @@ const YouTubeDownloader = () => {
       WebkitLineClamp: 2,
       WebkitBoxOrient: 'vertical',
       overflow: 'hidden'
-    },
-    urlHint: {
-      fontSize: '0.75rem',
-      color: '#6b7280',
-      marginTop: '0.25rem',
-      marginBottom: '1rem'
     }
   };
 
@@ -525,7 +466,12 @@ const YouTubeDownloader = () => {
         {/* Tab Navigation */}
         <div style={styles.tabContainer}>
           <button
-            onClick={() => handleTabChange('download')}
+            onClick={() => {
+              setActiveTab('download');
+              setDownloadMode(null);
+              setUrl('');
+              setError('');
+            }}
             style={{
               ...styles.tabButton,
               ...(activeTab === 'download' ? styles.tabButtonActive : styles.tabButtonInactive)
@@ -535,7 +481,7 @@ const YouTubeDownloader = () => {
             Download
           </button>
           <button
-            onClick={() => handleTabChange('history')}
+            onClick={() => setActiveTab('history')}
             style={{
               ...styles.tabButton,
               ...(activeTab === 'history' ? styles.tabButtonActive : styles.tabButtonInactive)
@@ -549,14 +495,7 @@ const YouTubeDownloader = () => {
         {error && (
           <div style={styles.errorAlert}>
             <XCircle size={isMobile ? 18 : 20} />
-            <span>{error}</span>
-            <button 
-              onClick={clearError}
-              style={styles.closeErrorButton}
-              title="Dismiss error"
-            >
-              <XCircle size={16} />
-            </button>
+            {error}
           </div>
         )}
 
@@ -607,7 +546,6 @@ const YouTubeDownloader = () => {
                     onClick={() => {
                       setDownloadMode(null);
                       setUrl('');
-                      clearError();
                     }}
                     style={{
                       padding: isMobile ? '0.375rem 0.75rem' : '0.5rem 1rem',
@@ -625,24 +563,17 @@ const YouTubeDownloader = () => {
                 </div>
 
                 {/* URL Input */}
-                <div style={{ marginBottom: '1rem' }}>
+                <div style={{ marginBottom: '1.5rem' }}>
                   <h4 style={{ fontWeight: '600', marginBottom: '0.75rem', fontSize: isMobile ? '0.875rem' : '1rem' }}>
                     YouTube URL
                   </h4>
                   <input
                     type="text"
                     value={url}
-                    onChange={(e) => handleUrlChange(e.target.value)}
-                    placeholder={isMobile ? "Paste YouTube link" : "Paste YouTube URL here (e.g., https://www.youtube.com/watch?v=...)"}
-                    style={{
-                      ...styles.input,
-                      ...(error && error.includes('YouTube URL') ? styles.inputError : {})
-                    }}
-                    onFocus={clearError}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder={isMobile ? "Paste YouTube link" : "Paste YouTube URL here"}
+                    style={styles.input}
                   />
-                  <div style={styles.urlHint}>
-                    Supported formats: youtube.com/watch?v=..., youtu.be/...
-                  </div>
                 </div>
 
                 {/* Download Button */}

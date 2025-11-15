@@ -1,1 +1,63 @@
 INFO 2025-11-15 14:13:50,978 autoreload 7900 18196 Watching for file changes with StatReloader
+INFO 2025-11-15 14:25:31,369 autoreload 9180 860 Watching for file changes with StatReloader
+INFO 2025-11-15 14:29:02,463 autoreload 9180 860 C:\Users\Mfundo\Desktop\youtubedownloader\backend\backend\settings.py changed, reloading.
+INFO 2025-11-15 14:30:31,203 autoreload 12536 15420 Watching for file changes with StatReloader
+INFO 2025-11-15 14:30:34,637 basehttp 12536 11840 "POST /api/download/ HTTP/1.1" 200 49
+INFO 2025-11-15 14:30:43,978 autoreload 16836 4804 Watching for file changes with StatReloader
+INFO 2025-11-15 14:43:39,417 autoreload 16836 4804 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\views.py changed, reloading.
+INFO 2025-11-15 14:43:41,062 autoreload 11276 12016 Watching for file changes with StatReloader
+INFO 2025-11-15 14:44:09,285 autoreload 11276 12016 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\models.py changed, reloading.
+INFO 2025-11-15 14:44:10,258 autoreload 14824 2316 Watching for file changes with StatReloader
+INFO 2025-11-15 14:44:24,384 autoreload 14824 2316 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\urls.py changed, reloading.
+INFO 2025-11-15 14:44:25,092 autoreload 12276 1332 Watching for file changes with StatReloader
+INFO 2025-11-15 14:47:36,479 autoreload 15748 9404 Watching for file changes with StatReloader
+INFO 2025-11-15 14:54:22,562 autoreload 15748 9404 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\views.py changed, reloading.
+INFO 2025-11-15 14:54:23,764 autoreload 10916 2184 Watching for file changes with StatReloader
+INFO 2025-11-15 14:56:32,041 autoreload 9800 15320 Watching for file changes with StatReloader
+INFO 2025-11-15 14:58:29,320 basehttp 9800 12052 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 14:58:34,781 basehttp 9800 12052 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 14:58:49,228 basehttp 9800 11148 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:02:30,341 autoreload 9800 15320 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\views.py changed, reloading.
+INFO 2025-11-15 15:02:32,674 autoreload 11288 11692 Watching for file changes with StatReloader
+INFO 2025-11-15 15:02:41,883 basehttp 11288 17544 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:03:42,640 autoreload 6412 14440 Watching for file changes with StatReloader
+INFO 2025-11-15 15:03:51,556 basehttp 6412 10996 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:08:09,854 autoreload 6412 14440 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\views.py changed, reloading.
+INFO 2025-11-15 15:08:10,536 autoreload 13472 7856 Watching for file changes with StatReloader
+INFO 2025-11-15 15:08:18,478 basehttp 13472 13756 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:08:32,036 basehttp 13472 13756 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:15:47,443 autoreload 13472 7856 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\views.py changed, reloading.
+INFO 2025-11-15 15:15:48,807 autoreload 12148 16592 Watching for file changes with StatReloader
+INFO 2025-11-15 15:15:56,635 basehttp 12148 13800 "GET /api/downloads/history/ HTTP/1.1" 200 2
+INFO 2025-11-15 15:16:17,037 basehttp 12148 13800 "GET /api/downloads/history/ HTTP/1.1" 200 2
+INFO 2025-11-15 15:16:23,402 basehttp 12148 13800 "GET /api/downloads/history/ HTTP/1.1" 200 2
+INFO 2025-11-15 15:18:16,261 autoreload 12148 16592 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\models.py changed, reloading.
+INFO 2025-11-15 15:18:17,279 autoreload 17736 11068 Watching for file changes with StatReloader
+INFO 2025-11-15 15:23:06,506 autoreload 17736 11068 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\views.py changed, reloading.
+INFO 2025-11-15 15:23:07,918 autoreload 14280 15832 Watching for file changes with StatReloader
+INFO 2025-11-15 15:23:50,635 views 14280 18160 Fetching download history for session: egf0clbwwu61894az6cfv2rqvep9tpfj
+INFO 2025-11-15 15:23:50,744 views 14280 18160 Found 0 download records
+ERROR 2025-11-15 15:23:50,744 views 14280 18160 Error in get_download_history: no such column: my_mp4_downloadrequest.updated_at
+ERROR 2025-11-15 15:23:50,744 log 14280 18160 Internal Server Error: /api/downloads/history/
+ERROR 2025-11-15 15:23:50,749 basehttp 14280 18160 "GET /api/downloads/history/ HTTP/1.1" 500 62
+INFO 2025-11-15 15:24:57,290 autoreload 1872 15396 Watching for file changes with StatReloader
+INFO 2025-11-15 15:25:08,366 basehttp 1872 5700 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:25:17,515 basehttp 1872 5700 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:25:20,057 basehttp 1872 5700 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:25:25,428 basehttp 1872 5700 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:25:31,432 basehttp 1872 13760 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:25:39,604 basehttp 1872 940 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:25:58,528 basehttp 1872 11428 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:26:04,617 basehttp 1872 11428 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:26:08,263 basehttp 1872 3128 "GET /api/downloads/history/ HTTP/1.1" 200 17
+INFO 2025-11-15 15:26:19,479 autoreload 1872 15396 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\views.py changed, reloading.
+INFO 2025-11-15 15:26:20,940 autoreload 6008 13348 Watching for file changes with StatReloader
+INFO 2025-11-15 15:26:46,663 autoreload 6008 13348 C:\Users\Mfundo\Desktop\youtubedownloader\backend\my_mp4\views.py changed, reloading.
+INFO 2025-11-15 15:26:47,338 autoreload 16976 4448 Watching for file changes with StatReloader
+INFO 2025-11-15 15:27:12,086 basehttp 16976 11756 "POST /api/download/ HTTP/1.1" 200 71
+INFO 2025-11-15 15:35:21,264 autoreload 9612 9220 Watching for file changes with StatReloader
+INFO 2025-11-15 15:36:36,661 basehttp 9612 17920 "GET /api/downloads/history/ HTTP/1.1" 200 2
+INFO 2025-11-15 15:40:57,634 basehttp 9612 18044 "GET /api/downloads/history/ HTTP/1.1" 200 2
+INFO 2025-11-15 15:41:41,005 basehttp 9612 3480 "GET /api/downloads/history/ HTTP/1.1" 200 2
+INFO 2025-11-15 15:44:16,226 basehttp 9612 11624 "GET /api/downloads/history/ HTTP/1.1" 200 2
+INFO 2025-11-15 15:44:36,892 autoreload 9612 9220 C:\Users\Mfundo\Desktop\youtubedownloader\backend\backend\settings.py changed, reloading.
