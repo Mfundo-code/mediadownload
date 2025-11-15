@@ -12,6 +12,12 @@ import re
 # Global dictionary to store progress
 download_progress = {}
 
+def get_session_id(request):
+    """Get or create session ID"""
+    if not request.session.session_key:
+        request.session.create()
+    return request.session.session_key
+
 def progress_hook(d, download_request_id):
     """Enhanced progress hook with better percentage tracking"""
     if d['status'] == 'downloading':
@@ -170,6 +176,7 @@ def download_video(url, format_type, download_request):
 @require_http_methods(["POST"])
 def start_download(request):
     try:
+        session_id = get_session_id(request)
         data = json.loads(request.body)
         url = data.get('url')
         format_type = data.get('format', 'mp4')
@@ -188,7 +195,8 @@ def start_download(request):
         download_request = DownloadRequest.objects.create(
             url=url,
             format_choice=format_type,
-            status='processing'
+            status='processing',
+            session_id=session_id  # Store session ID
         )
         
         thread = threading.Thread(
@@ -209,7 +217,8 @@ def start_download(request):
 @require_http_methods(["GET"])
 def check_status(request, request_id):
     try:
-        download_request = DownloadRequest.objects.get(id=request_id)
+        session_id = get_session_id(request)
+        download_request = DownloadRequest.objects.get(id=request_id, session_id=session_id)
         progress = download_progress.get(request_id, 0)
         
         response_data = {
@@ -280,7 +289,11 @@ def get_video_info(request):
 @require_http_methods(["GET"])
 def get_download_history(request):
     try:
-        completed_downloads = DownloadRequest.objects.filter(status='completed').order_by('-created_at')
+        session_id = get_session_id(request)
+        completed_downloads = DownloadRequest.objects.filter(
+            status='completed', 
+            session_id=session_id
+        ).order_by('-created_at')
         
         downloads_list = []
         for download in completed_downloads:
@@ -308,7 +321,8 @@ def get_download_history(request):
 @require_http_methods(["DELETE"])
 def delete_download(request, download_id):
     try:
-        download = DownloadRequest.objects.get(id=download_id)
+        session_id = get_session_id(request)
+        download = DownloadRequest.objects.get(id=download_id, session_id=session_id)
         
         if download.file_path and os.path.exists(download.file_path):
             os.remove(download.file_path)

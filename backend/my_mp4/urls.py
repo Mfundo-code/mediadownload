@@ -9,5 +9,5 @@ urlpatterns = [
     path('video-info/', views.get_video_info, name='get_video_info'),
     path('downloads/history/', views.get_download_history, name='get_download_history'),
     path('downloads/delete/<int:download_id>/', views.delete_download, name='delete_download'),
-    path('search/', views.search_youtube, name='search_youtube'),  # New search endpoint
+    path('search/', views.search_youtube, name='search_youtube'),
 ]

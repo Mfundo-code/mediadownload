@@ -9,6 +9,8 @@ class DownloadRequest(models.Model):
     video_title = models.CharField(max_length=500, blank=True, null=True)
     video_thumbnail = models.URLField(max_length=500, blank=True, null=True)
     video_duration = models.IntegerField(default=0)
+    session_id = models.CharField(max_length=100, blank=True, null=True)  # New field
+    error_message = models.TextField(blank=True, null=True)  # Add this for better error handling
     
     def __str__(self):
         return f"{self.url} - {self.status}"
