@@ -89,22 +89,30 @@ def download_video(url, format_type, download_request):
             else:
                 raise Exception("Cannot download entire playlists. Please select a specific video.")
         
-        # Base yt-dlp options
+        # Enhanced yt-dlp options to avoid bot detection
         ydl_opts = {
             'outtmpl': os.path.join(media_dir, '%(title)s.%(ext)s'),
             'progress_hooks': [lambda d: progress_hook(d, download_request.id)],
             'noplaylist': True,  # CRITICAL: Only download single video, not playlist
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web'],
+                }
+            },
             'http_headers': {
                 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 'Accept-Language': 'en-us,en;q=0.5',
-                'Sec-Fetch-Mode': 'navigate',
+                'Accept-Encoding': 'gzip, deflate',
+                'Cache-Control': 'no-cache',
+                'Connection': 'keep-alive',
             },
-            'nocheckcertificate': True,
+            # Additional anti-bot measures
+            'no_check_certificate': True,
             'ignoreerrors': False,
             'no_warnings': False,
             'quiet': False,
+            'verbose': True,
         }
         
         if format_type == 'mp3':
@@ -256,14 +264,22 @@ def get_video_info(request):
         return JsonResponse({'error': 'URL is required'}, status=400)
     
     try:
+        # Enhanced options to avoid bot detection
         ydl_opts = {
             'quiet': True,
             'no_warnings': True,
             'noplaylist': True,  # Only get info for single video
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-            'http_headers': {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web'],
+                }
             },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+                'Accept-Language': 'en-us,en;q=0.5',
+            },
+            'no_check_certificate': True,
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -371,12 +387,21 @@ def search_youtube(request):
         return JsonResponse({'error': 'Search query is required'}, status=400)
     
     try:
+        # Enhanced options to avoid bot detection
         ydl_opts = {
             'quiet': True,
             'extract_flat': True,
             'default_search': 'ytsearch10',
             'noplaylist': True,
-            'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['android', 'web'],
+                }
+            },
+            'http_headers': {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            },
+            'no_check_certificate': True,
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
