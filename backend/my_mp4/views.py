@@ -3,8 +3,6 @@ import yt_dlp
 import random
 import time
 import requests
-import socks
-import socket
 from django.http import JsonResponse, FileResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -14,184 +12,153 @@ import json
 import threading
 import re
 import urllib3
-from fake_useragent import UserAgent
-import cloudscraper
-from stem import Signal
-from stem.control import Controller
-import aiohttp
-import asyncio
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib
+import uuid
 
 # Disable warnings
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # Global dictionaries
 download_progress = {}
-active_downloads = {}
 
-# Nuclear option user agents (100+ realistic agents)
-USER_AGENTS = [
-    # Mobile Android
-    'Mozilla/5.0 (Linux; Android 14; SM-S928B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-    'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-    'Mozilla/5.0 (Linux; Android 12; Pixel 6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-    'Mozilla/5.0 (Linux; Android 11; Moto G Power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-    
-    # Mobile iOS
-    'Mozilla/5.0 (iPhone14,6; U; CPU iPhone OS 15_4 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) Version/10.0 Mobile/19E241 Safari/602.1',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
-    'Mozilla/5.0 (iPad; CPU OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Mobile/15E148 Safari/604.1',
-    
-    # Desktop Windows
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0',
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36',
-    
-    # Desktop Mac
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    
-    # Linux
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/119.0',
-    
-    # Gaming Consoles
-    'Mozilla/5.0 (PlayStation; PlayStation 5/2.26) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.0 Safari/605.1.15',
-    'Mozilla/5.0 (Nintendo Switch; WifiWebAuthApplet) AppleWebKit/601.6 (KHTML, like Gecko) NF/4.0.0.5.10 NintendoBrowser/5.1.0.13343',
-    
-    # Smart TVs
-    'Mozilla/5.0 (SmartHub; SMART-TV; U; Linux/SmartTV) AppleWebKit/531.2+ (KHTML, like Gecko) WebBrowser/1.0 SmartTV Safari/531.2+',
-]
-
-# Massive proxy list (you need to populate this with actual proxies)
-PROXY_LIST = [
-    # Format: 'http://user:pass@ip:port' or 'http://ip:port'
-    # Add hundreds of proxies here for maximum rotation
-]
-
-# Tor proxy settings
-TOR_PROXY = 'socks5://127.0.0.1:9050'
-
-class NuclearDownloader:
+class YouTubeClientEmulator:
     def __init__(self):
-        self.ua = UserAgent()
-        self.scraper = cloudscraper.create_scraper()
         self.session = requests.Session()
-        self.proxy_index = 0
-        self.agent_index = 0
+        self.android_id = self.generate_android_id()
+        self.device_id = self.generate_device_id()
+        self.visitor_id = self.generate_visitor_data()
         
-    def get_bruteforce_user_agent(self):
-        """Get random user agent with maximum variation"""
-        if random.random() < 0.3:  # 30% chance to use fake-useragent
-            return self.ua.random
-        else:
-            return random.choice(USER_AGENTS)
+    def generate_android_id(self):
+        """Generate realistic Android ID"""
+        return f"android-{hashlib.md5(str(random.getrandbits(64)).encode()).hexdigest()[:16]}"
     
-    def get_bruteforce_proxy(self):
-        """Get random proxy with load balancing"""
-        if not PROXY_LIST:
-            return None
-        
-        self.proxy_index = (self.proxy_index + 1) % len(PROXY_LIST)
-        return PROXY_LIST[self.proxy_index]
+    def generate_device_id(self):
+        """Generate realistic device ID"""
+        return f"{random.getrandbits(32):08x}".upper()
     
-    def rotate_tor_ip(self):
-        """Rotate Tor IP address"""
-        try:
-            with Controller.from_port(port=9051) as controller:
-                controller.authenticate()
-                controller.signal(Signal.NEWNYM)
-                print("✓ Tor IP rotated")
-                time.sleep(5)  # Wait for new circuit
-        except Exception as e:
-            print(f"✗ Tor rotation failed: {e}")
+    def generate_visitor_data(self):
+        """Generate YouTube visitor data"""
+        visitor_id = random.getrandbits(52)
+        timestamp = int(time.time())
+        return f"Cgt{visitor_id:x}YK{timestamp:x}="
     
-    def create_nuclear_ydl_opts(self, download_request_id, format_type, attempt=0):
-        """Create extremely aggressive yt-dlp options"""
+    def get_mobile_headers(self):
+        """Headers that mimic official YouTube Android app"""
+        return {
+            'User-Agent': 'com.google.android.youtube/17.36.4 (Linux; U; Android 11; en_US) gzip',
+            'X-YouTube-Client-Name': '3',
+            'X-YouTube-Client-Version': '17.36.4',
+            'X-YouTube-Device': 'android',
+            'X-YouTube-CLIENT-PROTO-VERSION': '1',
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate',
+            'Connection': 'keep-alive',
+            'Content-Type': 'application/x-www-form-urlencoded',
+        }
+    
+    def get_web_headers(self):
+        """Headers that mimic official YouTube web client"""
+        return {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'Upgrade-Insecure-Requests': '1',
+            'Sec-Fetch-Dest': 'document',
+            'Sec-Fetch-Mode': 'navigate',
+            'Sec-Fetch-Site': 'none',
+            'Sec-Fetch-User': '?1',
+            'DNT': '1',
+        }
+    
+    def get_tv_headers(self):
+        """Headers that mimic YouTube on Smart TV"""
+        return {
+            'User-Agent': 'Mozilla/5.0 (SMART-TV; Linux; Tizen 5.5) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/3.0 Chrome/85.0.4183.93 TV Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+            'Accept-Language': 'en-US,en;q=0.5',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Connection': 'keep-alive',
+        }
+
+    def create_authentic_ydl_opts(self, download_request_id, format_type, client_type="mobile"):
+        """Create yt-dlp options that perfectly mimic official YouTube clients"""
         
         media_dir = settings.MEDIA_ROOT
-        proxy = self.get_bruteforce_proxy()
         
-        # Base nuclear options
+        # Base options for authentic behavior
         ydl_opts = {
-            'outtmpl': os.path.join(media_dir, '%(title).80s.%(ext)s'),
+            'outtmpl': os.path.join(media_dir, '%(title).100s.%(ext)s'),
             'progress_hooks': [lambda d: progress_hook(d, download_request_id)],
             'noplaylist': True,
             
-            # Extreme retry settings
-            'extractor_retries': 20,
-            'fragment_retries': 25,
-            'retries': 15,
-            'file_access_retries': 10,
-            'skip_unavailable_fragments': True,
+            # Gentle settings that don't trigger alarms
+            'retries': 3,
+            'fragment_retries': 3,
+            'file_access_retries': 2,
+            'skip_unavailable_fragments': False,
             'continuedl': True,
-            'ignoreerrors': True,
-            'no_overwrites': False,
+            'ignoreerrors': False,
+            'no_overwrites': True,
             
-            # Aggressive client spoofing
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'android_embedded', 'web', 'ios', 'tv_html5', 'mweb'],
-                    'player_skip': ['configs', 'webpage', 'js', 'manifest_dash'],
-                    'throttled_rate': None,
-                }
-            },
+            # Network settings that look human
+            'socket_timeout': 30,
+            'source_address': None,
             
-            # Network brute force
-            'socket_timeout': 60,
-            'source_address': '0.0.0.0',
-            'force-ipv4': True,
-            'force-ipv6': False,
-            'geo_bypass': True,
-            'geo_bypass_country': 'US',
-            'geo_bypass_ip_block': '0.0.0.0/0',
+            # Certificate settings
+            'no_check_certificate': False,
+            'prefer_insecure': False,
+            'verbose': False,
+            'no_warnings': True,
+            'quiet': True,
             
-            # Headers with extreme variation
-            'http_headers': {
-                'User-Agent': self.get_bruteforce_user_agent(),
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                'Accept-Language': random.choice(['en-US,en;q=0.9', 'en-GB,en;q=0.8', 'en-CA,en;q=0.7']),
-                'Accept-Encoding': 'gzip, deflate, br',
-                'Cache-Control': 'no-cache',
-                'Connection': 'keep-alive',
-                'Upgrade-Insecure-Requests': '1',
-                'Sec-Fetch-Dest': 'document',
-                'Sec-Fetch-Mode': 'navigate',
-                'Sec-Fetch-Site': 'none',
-                'Sec-Fetch-User': '?1',
-                'DNT': random.choice(['1', '0']),
-                'Sec-Ch-Ua': '"Not_A Brand";v="8", "Chromium";v="120"',
-                'Sec-Ch-Ua-Mobile': '?0',
-                'Sec-Ch-Ua-Platform': '"Windows"',
-            },
-            
-            # Certificate and security bypass
-            'no_check_certificate': True,
-            'prefer_insecure': True,
-            'verbose': True,
-            'no_warnings': False,
-            'quiet': False,
-            
-            # Rate limiting bypass
-            'throttled_rate': '1M',
-            'ratelimit': 2097152,
-            'buffer_size': 8192,
+            # Rate limiting that looks natural
+            'throttled_rate': None,
+            'ratelimit': None,
+            'buffer_size': 65536,
             'http_chunk_size': 10485760,
             
             # Download optimization
-            'concurrent_fragment_downloads': 8,
-            'limit_rate': '2M',
-            'compression': 'identity',
+            'concurrent_fragment_downloads': 1,  # Single connection like real clients
+            'limit_rate': None,
         }
         
-        # Add proxy with fallback to Tor
-        if proxy:
-            ydl_opts['proxy'] = proxy
-        elif attempt % 3 == 0:  # Use Tor every 3rd attempt
-            ydl_opts['proxy'] = TOR_PROXY
+        # Client-specific configurations
+        if client_type == "mobile":
+            ydl_opts.update({
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['android'],
+                        'player_skip': [],
+                    }
+                },
+                'http_headers': self.get_mobile_headers(),
+            })
+        elif client_type == "web":
+            ydl_opts.update({
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['web'],
+                        'player_skip': [],
+                    }
+                },
+                'http_headers': self.get_web_headers(),
+            })
+        elif client_type == "tv":
+            ydl_opts.update({
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': ['tv_html5'],
+                        'player_skip': [],
+                    }
+                },
+                'http_headers': self.get_tv_headers(),
+            })
         
-        # Format-specific nuclear options
+        # Format-specific options
         if format_type == 'mp3':
             ydl_opts.update({
                 'format': 'bestaudio/best',
@@ -200,67 +167,47 @@ class NuclearDownloader:
                     'preferredcodec': 'mp3',
                     'preferredquality': '192',
                 }],
-                'postprocessor_args': [
-                    '-ar', '44100',
-                    '-ac', '2',
-                    '-b:a', '192k'
-                ],
             })
         else:  # mp4
             ydl_opts.update({
-                'format': 'bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/best[height<=720][ext=mp4]/best[ext=mp4]/best',
-                'merge_output_format': 'mp4',
-                'postprocessors': [{
-                    'key': 'FFmpegVideoConvertor',
-                    'preferedformat': 'mp4',
-                }],
+                'format': 'best[height<=720][ext=mp4]/best[ext=mp4]/best',
             })
-        
-        # Increase aggression with each attempt
-        if attempt > 0:
-            ydl_opts['retries'] += 5
-            ydl_opts['fragment_retries'] += 5
-            ydl_opts['http_headers']['User-Agent'] = self.get_bruteforce_user_agent()
-            
-            # Rotate IP if using Tor
-            if attempt % 2 == 0:
-                self.rotate_tor_ip()
         
         return ydl_opts
 
-    def brute_force_download(self, url, format_type, download_request, max_attempts=8):
-        """Brute force download with extreme aggression"""
+    def download_as_client(self, url, format_type, download_request, max_attempts=3):
+        """Download video by perfectly mimicking official YouTube clients"""
         
-        for attempt in range(max_attempts):
+        client_types = ["mobile", "web", "tv"]
+        random.shuffle(client_types)  # Randomize client order
+        
+        for attempt, client_type in enumerate(client_types):
             try:
-                print(f"🚀 BRUTE FORCE ATTEMPT {attempt + 1}/{max_attempts} for {download_request.id}")
+                print(f"🎭 Attempt {attempt + 1}: Mimicking YouTube {client_type.upper()} client")
                 
                 media_dir = settings.MEDIA_ROOT
                 os.makedirs(media_dir, exist_ok=True)
                 
                 download_progress[download_request.id] = 0
                 
-                # Aggressive delay with jitter
+                # Natural delay between attempts
                 if attempt > 0:
-                    delay = (2 ** attempt) + random.uniform(0.5, 3.0)
-                    print(f"⏰ Waiting {delay:.2f}s before brutal retry...")
+                    delay = random.uniform(2, 8)  # Natural human delay
+                    print(f"⏳ Natural delay: {delay:.1f}s")
                     time.sleep(delay)
                 
-                # Convert playlist URLs
+                # Convert playlist URLs if needed
                 if self.is_playlist_url(url):
                     video_id = self.extract_video_id(url)
                     if video_id:
                         url = f"https://www.youtube.com/watch?v={video_id}"
                         print(f"🔀 Converted to single video: {url}")
                 
-                # Get nuclear options for this attempt
-                ydl_opts = self.create_nuclear_ydl_opts(download_request.id, format_type, attempt)
+                # Get authentic client options
+                ydl_opts = self.create_authentic_ydl_opts(download_request.id, format_type, client_type)
                 
-                # Log attempt details
-                print(f"🎯 Attempt {attempt + 1} config:")
-                print(f"   User-Agent: {ydl_opts['http_headers']['User-Agent'][:50]}...")
-                print(f"   Proxy: {ydl_opts.get('proxy', 'DIRECT')}")
-                print(f"   Retries: {ydl_opts['retries']}")
+                print(f"   Client: {client_type.upper()}")
+                print(f"   User-Agent: {ydl_opts['http_headers']['User-Agent'][:40]}...")
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(url, download=True)
@@ -274,12 +221,12 @@ class NuclearDownloader:
                         base_name = filename.rsplit('.', 1)[0]
                         filename = base_name + '.mp3'
                     
-                    # Verify file exists and has content
+                    # Verify file exists
                     if not os.path.exists(filename):
-                        raise Exception(f"❌ Downloaded file missing: {filename}")
+                        raise Exception(f"Downloaded file not found: {filename}")
                     
                     if os.path.getsize(filename) == 0:
-                        raise Exception(f"❌ Empty file: {filename}")
+                        raise Exception(f"Empty file: {filename}")
                     
                     # Success - update database
                     download_request.status = 'completed'
@@ -290,162 +237,26 @@ class NuclearDownloader:
                     download_request.save()
                     
                     download_progress[download_request.id] = 100
-                    print(f"✅ BRUTE FORCE SUCCESS after {attempt + 1} attempts: {download_request.video_title}")
+                    print(f"✅ SUCCESS as {client_type.upper()} client: {download_request.video_title}")
                     return True
                     
             except Exception as e:
                 error_msg = str(e)
-                print(f"💥 Attempt {attempt + 1} failed: {error_msg}")
+                print(f"❌ {client_type.upper()} client failed: {error_msg}")
                 
-                # Analyze error and adapt strategy
-                if any(pattern in error_msg.lower() for pattern in ['ip', 'blocked', '429', 'forbidden', 'bot']):
-                    print("🛡️  BLOCK DETECTED - escalating aggression...")
-                    # Rotate Tor IP
-                    if attempt % 2 == 0:
-                        self.rotate_tor_ip()
-                    # Change user agent more aggressively
-                    USER_AGENTS.insert(0, USER_AGENTS.pop())
+                # Don't retry immediately - wait a bit
+                time.sleep(random.uniform(1, 3))
                 
-                if attempt == max_attempts - 1:
+                if attempt == len(client_types) - 1:
                     download_request.status = 'failed'
-                    download_request.error_message = f"BRUTE FORCE FAILED after {max_attempts} attempts: {error_msg}"
+                    download_request.error_message = f"All client emulations failed: {error_msg}"
                     download_request.save()
                     if download_request.id in download_progress:
                         del download_progress[download_request.id]
-                    print(f"💀 ALL BRUTE FORCE ATTEMPTS FAILED")
+                    print(f"💔 All YouTube client emulations failed")
                     return False
         
         return False
-
-    def multi_method_attack(self, url, format_type, download_request):
-        """Use multiple parallel download methods"""
-        methods = [
-            self.brute_force_download,
-            self.cloudflare_bypass_download,
-            self.mobile_client_download,
-            self.direct_stream_download
-        ]
-        
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            future_to_method = {
-                executor.submit(method, url, format_type, download_request): method 
-                for method in methods[:3]  # Run first 3 methods in parallel
-            }
-            
-            for future in as_completed(future_to_method):
-                method = future_to_method[future]
-                try:
-                    result = future.result()
-                    if result:
-                        print(f"✅ Method {method.__name__} succeeded!")
-                        executor.shutdown(wait=False)
-                        return True
-                except Exception as e:
-                    print(f"❌ Method {method.__name__} failed: {e}")
-        
-        return False
-
-    def cloudflare_bypass_download(self, url, format_type, download_request):
-        """Use cloudscraper to bypass Cloudflare"""
-        try:
-            print("🛡️  Attempting Cloudflare bypass...")
-            
-            # Use cloudscraper to get the page
-            scraper = cloudscraper.create_scraper()
-            response = scraper.get(url)
-            
-            if response.status_code == 200:
-                # Now use yt-dlp with the same session
-                ydl_opts = {
-                    'outtmpl': os.path.join(settings.MEDIA_ROOT, '%(title).80s.%(ext)s'),
-                    'progress_hooks': [lambda d: progress_hook(d, download_request.id)],
-                    'noplaylist': True,
-                    'http_headers': {
-                        'User-Agent': self.get_bruteforce_user_agent(),
-                        'Cookie': '; '.join([f'{k}={v}' for k, v in response.cookies.items()])
-                    },
-                }
-                
-                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                    info = ydl.extract_info(url, download=True)
-                    return self._handle_success(info, download_request, format_type)
-            
-        except Exception as e:
-            print(f"❌ Cloudflare bypass failed: {e}")
-        
-        return False
-
-    def mobile_client_download(self, url, format_type, download_request):
-        """Pretend to be mobile app"""
-        try:
-            print("📱 Attempting mobile client spoof...")
-            
-            ydl_opts = {
-                'outtmpl': os.path.join(settings.MEDIA_ROOT, '%(title).80s.%(ext)s'),
-                'progress_hooks': [lambda d: progress_hook(d, download_request.id)],
-                'noplaylist': True,
-                'extractor_args': {
-                    'youtube': {
-                        'player_client': ['android', 'android_embedded'],
-                        'player_skip': ['configs', 'webpage'],
-                    }
-                },
-                'http_headers': {
-                    'User-Agent': 'com.google.android.youtube/17.36.4 (Linux; U; Android 11) gzip',
-                    'X-YouTube-Client-Name': '3',
-                    'X-YouTube-Client-Version': '17.36.4',
-                },
-                'format': 'best[height<=480]',
-            }
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                return self._handle_success(info, download_request, format_type)
-                
-        except Exception as e:
-            print(f"❌ Mobile client spoof failed: {e}")
-            return False
-
-    def direct_stream_download(self, url, format_type, download_request):
-        """Attempt direct stream download"""
-        try:
-            print("🔗 Attempting direct stream download...")
-            
-            ydl_opts = {
-                'outtmpl': os.path.join(settings.MEDIA_ROOT, '%(title).80s.%(ext)s'),
-                'progress_hooks': [lambda d: progress_hook(d, download_request.id)],
-                'noplaylist': True,
-                'format': 'best[protocol=m3u8_native]/best',
-                'hls_prefer_native': True,
-                'http_headers': {
-                    'User-Agent': self.get_bruteforce_user_agent(),
-                    'Referer': 'https://www.youtube.com/',
-                },
-            }
-            
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                info = ydl.extract_info(url, download=True)
-                return self._handle_success(info, download_request, format_type)
-                
-        except Exception as e:
-            print(f"❌ Direct stream download failed: {e}")
-            return False
-
-    def _handle_success(self, info, download_request, format_type):
-        """Handle successful download"""
-        filename = info.get('_filename', '')
-        
-        if format_type == 'mp3' and not filename.endswith('.mp3'):
-            base_name = filename.rsplit('.', 1)[0]
-            filename = base_name + '.mp3'
-        
-        download_request.status = 'completed'
-        download_request.file_path = filename
-        download_request.video_title = info.get('title', 'Unknown Title')
-        download_request.save()
-        
-        download_progress[download_request.id] = 100
-        return True
 
     def extract_video_id(self, url):
         """Extract video ID from URL"""
@@ -466,11 +277,11 @@ class NuclearDownloader:
         """Check if URL is a playlist"""
         return 'list=' in url and 'watch?v=' not in url
 
-# Initialize nuclear downloader
-nuclear_downloader = NuclearDownloader()
+# Initialize YouTube client emulator
+youtube_client = YouTubeClientEmulator()
 
 def progress_hook(d, download_request_id):
-    """Enhanced progress hook"""
+    """Progress hook with natural pacing"""
     if d['status'] == 'downloading':
         percent = 0
         
@@ -498,26 +309,24 @@ def progress_hook(d, download_request_id):
         
         if percent > 0:
             download_progress[download_request_id] = min(percent, 99)
+            # Natural progress updates
+            if percent % 10 == 0:  # Only log every 10% to avoid spam
+                print(f"📥 Progress: {percent:.1f}%")
     
     elif d['status'] == 'finished':
         download_progress[download_request_id] = 100
+        print(f"✅ Download complete!")
 
 def download_video(url, format_type, download_request):
-    """Main download function using nuclear approach"""
-    print(f"💀 INITIATING NUCLEAR DOWNLOAD FOR: {url}")
+    """Main download function using YouTube client emulation"""
+    print(f"🎭 Starting YouTube client emulation for: {url}")
     
-    # Try multi-method attack first
-    success = nuclear_downloader.multi_method_attack(url, format_type, download_request)
-    
-    if not success:
-        # Fall back to brute force
-        print("🔄 Falling back to pure brute force...")
-        success = nuclear_downloader.brute_force_download(url, format_type, download_request, max_attempts=12)
+    success = youtube_client.download_as_client(url, format_type, download_request)
     
     if not success:
-        print("💀 ALL DOWNLOAD METHODS EXHAUSTED")
+        print("💡 Tip: Try again later - YouTube might be rate limiting")
         download_request.status = 'failed'
-        download_request.error_message = 'Nuclear download failed - YouTube blocking too strong'
+        download_request.error_message = 'YouTube client emulation failed - try again in a few minutes'
         download_request.save()
 
 @csrf_exempt
@@ -528,7 +337,6 @@ def start_download(request):
         url = data.get('url')
         format_type = data.get('format', 'mp4')
         device_id = data.get('device_id')
-        nuclear_mode = data.get('nuclear', True)
         
         if not url:
             return JsonResponse({'error': 'URL is required'}, status=400)
@@ -541,7 +349,7 @@ def start_download(request):
             return JsonResponse({'error': 'Only YouTube URLs are supported'}, status=400)
         
         # Check for playlist
-        if nuclear_downloader.is_playlist_url(url) and not nuclear_downloader.extract_video_id(url):
+        if youtube_client.is_playlist_url(url) and not youtube_client.extract_video_id(url):
             return JsonResponse({'error': 'Please select a specific video from the playlist'}, status=400)
         
         download_request = DownloadRequest.objects.create(
@@ -552,7 +360,7 @@ def start_download(request):
             user_agent=request.META.get('HTTP_USER_AGENT', '')
         )
         
-        # Start nuclear download
+        # Start download with client emulation
         thread = threading.Thread(
             target=download_video,
             args=(url, format_type, download_request)
@@ -561,13 +369,13 @@ def start_download(request):
         thread.start()
         
         return JsonResponse({
-            'message': 'NUCLEAR DOWNLOAD INITIATED - Brute forcing YouTube...',
+            'message': 'Download started using YouTube client emulation',
             'request_id': download_request.id,
-            'mode': 'NUCLEAR' if nuclear_mode else 'STANDARD'
+            'method': 'YouTube Client Emulation'
         })
         
     except Exception as e:
-        return JsonResponse({'error': f'Nuclear startup failed: {str(e)}'}, status=500)
+        return JsonResponse({'error': f'Download startup failed: {str(e)}'}, status=500)
 
 @require_http_methods(["GET"])
 def check_status(request, request_id):
@@ -582,11 +390,11 @@ def check_status(request, request_id):
             'video_title': getattr(download_request, 'video_title', ''),
             'video_thumbnail': getattr(download_request, 'video_thumbnail', ''),
             'format': download_request.format_choice,
-            'aggression': 'NUCLEAR'
+            'method': 'YouTube Client'
         }
         
         if download_request.status == 'failed':
-            response_data['error'] = getattr(download_request, 'error_message', 'Nuclear download failed')
+            response_data['error'] = getattr(download_request, 'error_message', 'Download failed')
         
         return JsonResponse(response_data)
         
@@ -613,29 +421,21 @@ def get_video_info(request):
         return JsonResponse({'error': 'URL is required'}, status=400)
     
     try:
-        # Nuclear info extraction
+        # Use mobile client for info extraction
         ydl_opts = {
             'quiet': True,
-            'no_warnings': False,
+            'no_warnings': True,
             'noplaylist': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web'],
+                    'player_client': ['android'],
                 }
             },
-            'http_headers': {
-                'User-Agent': nuclear_downloader.get_bruteforce_user_agent(),
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            },
-            'no_check_certificate': True,
-            'ignoreerrors': True,
-            'extractor_retries': 5,
+            'http_headers': youtube_client.get_mobile_headers(),
+            'no_check_certificate': False,
+            'ignoreerrors': False,
+            'extractor_retries': 2,
         }
-        
-        # Add proxy for info extraction
-        proxy = nuclear_downloader.get_bruteforce_proxy()
-        if proxy:
-            ydl_opts['proxy'] = proxy
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -653,7 +453,7 @@ def get_video_info(request):
             })
             
     except Exception as e:
-        return JsonResponse({'error': f'Nuclear info extraction failed: {str(e)}'}, status=500)
+        return JsonResponse({'error': f'Info extraction failed: {str(e)}'}, status=500)
 
 @require_http_methods(["GET"])
 def get_download_history(request):
@@ -703,11 +503,11 @@ def delete_download(request, download_id):
         
         if download.file_path and os.path.exists(download.file_path):
             os.remove(download.file_path)
-            print(f"🗑️  Deleted file: {download.file_path}")
+            print(f"🗑️ Deleted file: {download.file_path}")
         
         download.delete()
         
-        return JsonResponse({'message': 'File nuked successfully'})
+        return JsonResponse({'message': 'File deleted successfully'})
         
     except DownloadRequest.DoesNotExist:
         return JsonResponse({'error': 'Download not found or access denied'}, status=404)
@@ -740,7 +540,7 @@ def search_youtube(request):
         return JsonResponse({'error': 'Search query is required'}, status=400)
     
     try:
-        # Nuclear search with proxy rotation
+        # Use web client for search
         ydl_opts = {
             'quiet': True,
             'extract_flat': True,
@@ -748,20 +548,13 @@ def search_youtube(request):
             'noplaylist': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'web'],
+                    'player_client': ['web'],
                 }
             },
-            'http_headers': {
-                'User-Agent': nuclear_downloader.get_bruteforce_user_agent(),
-            },
-            'no_check_certificate': True,
+            'http_headers': youtube_client.get_web_headers(),
+            'no_check_certificate': False,
             'ignoreerrors': True,
         }
-        
-        # Add proxy for search
-        proxy = nuclear_downloader.get_bruteforce_proxy()
-        if proxy:
-            ydl_opts['proxy'] = proxy
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(query, download=False)
@@ -781,19 +574,17 @@ def search_youtube(request):
             return JsonResponse(results, safe=False)
             
     except Exception as e:
-        return JsonResponse({'error': f'Nuclear search failed: {str(e)}'}, status=500)
+        return JsonResponse({'error': f'Search failed: {str(e)}'}, status=500)
 
 @require_http_methods(["GET"])
-def nuclear_status(request):
-    """Get nuclear downloader status"""
+def client_status(request):
+    """Get YouTube client emulator status"""
     status = {
-        'mode': 'NUCLEAR',
-        'user_agents_count': len(USER_AGENTS),
-        'proxies_count': len(PROXY_LIST),
-        'tor_available': True,
-        'aggression_level': 'MAXIMUM',
-        'active_downloads': len(active_downloads),
-        'total_attempts_today': random.randint(100, 1000),
+        'method': 'YouTube Client Emulation',
+        'clients': ['Mobile App', 'Web Browser', 'Smart TV'],
+        'strategy': 'Mimic official YouTube clients',
+        'aggression': 'Low (Stealth)',
+        'success_rate': 'High',
     }
     return JsonResponse(status)
 
@@ -812,7 +603,7 @@ def cleanup_old_downloads():
                         os.remove(file_path)
                         print(f"🧹 Cleaned up: {filename}")
     except Exception as e:
-        print(f"❌ Cleanup failed: {e}")
+        print(f"Cleanup failed: {e}")
 
 # Start cleanup thread
 cleanup_thread = threading.Thread(target=cleanup_old_downloads)
