@@ -63,11 +63,18 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
-# Database
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'youtubedownloader',
+        'USER': 'youtubedownloader_user',
+        'PASSWORD': 'Mfundo@1995',
+        'HOST': 'localhost',
+        'PORT': '5432',
+        'OPTIONS': {
+            'connect_timeout': 30,
+        },
+        'CONN_MAX_AGE': 600, 
     }
 }
 
@@ -119,6 +126,13 @@ CORS_ALLOWED_ORIGINS = [
 
 # Only allow all origins in DEBUG mode
 CORS_ALLOW_ALL_ORIGINS = DEBUG
+
+# Security settings for production
+if not DEBUG:
+    SECURE_BROWSER_XSS_FILTER = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    X_FRAME_OPTIONS = 'DENY'
+    CSRF_COOKIE_SECURE = True
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
